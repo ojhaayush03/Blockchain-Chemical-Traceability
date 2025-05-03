@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<h2>Chemicals List</h2>
+<table border="1">
+    <tr>
+        <th>ID</th><th>Name</th><th>Status</th><th>Location</th>
+    </tr>
+    {% for chemical in chemicals %}
+    <tr>
+        <td>{{ chemical.id }}</td>
+        <td>{{ chemical.name }}</td>
+        <td>{{ chemical.status }}</td>
+        <td>{{ chemical.current_location }}</td>
+    </tr>
+    {% endfor %}
+</table>
+{% endblock %}
