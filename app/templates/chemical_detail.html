@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block title %}Chemical Details - {{ chemical.name }}{% endblock %}
+
+{% block content %}
+<div class="chemical-detail">
+    <h2>Chemical Details: {{ chemical.name }}</h2>
+    
+    <div class="detail-section">
+        <h3>Basic Information</h3>
+        <div class="detail-grid">
+            <div class="detail-item">
+                <span class="label">ID:</span>
+                <span class="value">{{ chemical.id }}</span>
+            </div>
+            <div class="detail-item">
+                <span class="label">Name:</span>
+                <span class="value">{{ chemical.name }}</span>
+            </div>
+            <div class="detail-item">
+                <span class="label">RFID Tag:</span>
+                <span class="value">{{ chemical.rfid_tag }}</span>
+            </div>
+            <div class="detail-item">
+                <span class="label">Manufacturer:</span>
+                <span class="value">{{ chemical.manufacturer if chemical.manufacturer else 'Not specified' }}</span>
+            </div>
+            <div class="detail-item">
+                <span class="label">Quantity:</span>
+                <span class="value">{{ chemical.quantity if chemical.quantity else 'Not specified' }} {{ chemical.unit if chemical.unit else '' }}</span>
+            </div>
+            <div class="detail-item">
+                <span class="label">Batch Number:</span>
+                <span class="value">{{ chemical.batch_number if chemical.batch_number else 'Not specified' }}</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="detail-section">
+        <h3>Chemical Properties</h3>
+        <div class="detail-grid">
+            <div class="detail-item">
+                <span class="label">CAS Number:</span>
+                <span class="value">{{ chemical.cas_number if chemical.cas_number else 'Not specified' }}</span>
+            </div>
+            <div class="detail-item">
+                <span class="label">Hazard Class:</span>
+                <span class="value">{{ chemical.hazard_class if chemical.hazard_class else 'Not specified' }}</span>
+            </div>
+            <div class="detail-item">
+                <span class="label">Storage Condition:</span>
+                <span class="value">{{ chemical.storage_condition if chemical.storage_condition else 'Not specified' }}</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="detail-section">
+        <h3>Dates</h3>
+        <div class="detail-grid">
+            <div class="detail-item">
+                <span class="label">Received Date:</span>
+                <span class="value">{{ chemical.received_date if chemical.received_date else 'Not specified' }}</span>
+            </div>
+            <div class="detail-item">
+                <span class="label">Expiry Date:</span>
+                <span class="value">{{ chemical.expiry_date if chemical.expiry_date else 'Not specified' }}</span>
+            </div>
+        </div>
+    </div>
+    
+    {% if chemical.description %}
+    <div class="detail-section">
+        <h3>Description</h3>
+        <p>{{ chemical.description }}</p>
+    </div>
+    {% endif %}
+    
+    <div class="detail-section">
+        <h3>Movement History</h3>
+        {% if logs %}
+        <table>
+            <tr>
+                <th>Date/Time</th>
+                <th>Location</th>
+                <th>Status</th>
+                <th>Moved By</th>
+                <th>Purpose</th>
+                <th>Remarks</th>
+            </tr>
+            {% for log in logs %}
+            <tr>
+                <td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td>{{ log.location }}</td>
+                <td>{{ log.status if log.status else '' }}</td>
+                <td>{{ log.moved_by if log.moved_by else '' }}</td>
+                <td>{{ log.purpose if log.purpose else '' }}</td>
+                <td>{{ log.remarks if log.remarks else '' }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% else %}
+        <p>No movement logs found for this chemical.</p>
+        {% endif %}
+    </div>
+    
+    <div class="detail-section">
+        <h3>Log New Movement</h3>
+        <form method="POST" action="{{ url_for('main.log_event') }}" id="movementForm">
+            <input type="hidden" name="tag_id" value="{{ chemical.rfid_tag }}">
+            <div class="form-row">
+                <label for="location">Location:</label>
+                <input type="text" id="location" name="location" required>
+            </div>
+            <div class="form-row">
+                <label for="status">Status:</label>
+                <select id="status" name="status">
+                    <option value="Moved">Moved</option>
+                    <option value="Stored">Stored</option>
+                    <option value="Used">Used</option>
+                    <option value="Disposed">Disposed</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <label for="moved_by">Moved By:</label>
+                <input type="text" id="moved_by" name="moved_by">
+            </div>
+            <div class="form-row">
+                <label for="purpose">Purpose:</label>
+                <input type="text" id="purpose" name="purpose">
+            </div>
+            <div class="form-row">
+                <label for="remarks">Remarks:</label>
+                <textarea id="remarks" name="remarks"></textarea>
+            </div>
+            <button type="submit" class="button">Log Movement</button>
+        </form>
+    </div>
+    
+    <div class="actions">
+        <a href="{{ url_for('dashboard_bp.dashboard') }}" class="button">Back to Dashboard</a>
+    </div>
+</div>
+
+<script>
+// Convert form submission to JSON for API endpoint
+document.getElementById('movementForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const jsonData = {};
+    
+    for (const [key, value] of formData.entries()) {
+        jsonData[key] = value;
+    }
+    
+    fetch('{{ url_for("main.log_event") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(jsonData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        alert('Movement logged successfully!');
+        location.reload();
+    })
+    .catch(error => {
+        alert('Error logging movement: ' + error);
+    });
+});
+</script>
+{% endblock %}

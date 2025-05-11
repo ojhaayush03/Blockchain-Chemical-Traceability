@@ -4,17 +4,91 @@
 
 {% block content %}
 <h2>Chemicals List</h2>
-<table border="1">
+<button class="button" onclick="openChemicalForm()">Add Chemical</button>
+<table>
     <tr>
-        <th>ID</th><th>Name</th><th>Status</th><th>Location</th>
+        <th>ID</th>
+        <th>Name</th>
+        <th>RFID Tag</th>
+        <th>Manufacturer</th>
+        <th>Quantity</th>
+        <th>Unit</th>
+        <th>Expiry Date</th>
+        <th>Storage Condition</th>
+        <th>Received Date</th>
+        <th>Batch Number</th>
+        <th>Hazard Class</th>
+        <th>CAS Number</th>
+        <th>Description</th>
+        <th>Status</th>
+        <th>Location</th>
+        <th>Actions</th>
     </tr>
     {% for chemical in chemicals %}
     <tr>
         <td>{{ chemical.id }}</td>
         <td>{{ chemical.name }}</td>
-        <td>{{ chemical.status }}</td>
-        <td>{{ chemical.current_location }}</td>
+        <td>{{ chemical.rfid_tag }}</td>
+        <td>{{ chemical.manufacturer }}</td>
+        <td>{{ chemical.quantity }}</td>
+        <td>{{ chemical.unit }}</td>
+        <td>{{ chemical.expiry_date }}</td>
+        <td>{{ chemical.storage_condition }}</td>
+        <td>{{ chemical.received_date }}</td>
+        <td>{{ chemical.batch_number }}</td>
+        <td>{{ chemical.hazard_class }}</td>
+        <td>{{ chemical.cas_number }}</td>
+        <td>{{ chemical.description }}</td>
+        <td>{{ chemical.status if chemical.status else '' }}</td>
+        <td>{{ chemical.current_location if chemical.current_location else '' }}</td>
+        <td><a href="{{ url_for('dashboard_bp.chemical_detail', chemical_id=chemical.id) }}" class="button">View</a></td>
     </tr>
     {% endfor %}
 </table>
+
+<!-- Modal Form for Adding Chemical -->
+<div class="form-modal" id="chemicalFormModal">
+    <div class="form-content">
+        <h3>Add New Chemical</h3>
+        <form id="addChemicalForm" method="POST" action="{{ url_for('dashboard_bp.add_chemical') }}">
+            <label>Name</label>
+            <input type="text" name="name" required>
+            <label>RFID Tag</label>
+            <input type="text" name="rfid_tag" required>
+            <label>Manufacturer</label>
+            <input type="text" name="manufacturer">
+            <label>Quantity</label>
+            <input type="number" step="any" name="quantity">
+            <label>Unit</label>
+            <input type="text" name="unit">
+            <label>Expiry Date</label>
+            <input type="date" name="expiry_date">
+            <label>Storage Condition</label>
+            <input type="text" name="storage_condition">
+            <label>Received Date</label>
+            <input type="date" name="received_date">
+            <label>Batch Number</label>
+            <input type="text" name="batch_number">
+            <label>Hazard Class</label>
+            <input type="text" name="hazard_class">
+            <label>CAS Number</label>
+            <input type="text" name="cas_number">
+            <label>Description</label>
+            <textarea name="description"></textarea>
+            <label>Current Location</label>
+            <input type="text" name="current_location" value="Storage" required>
+            <button type="submit" class="button">Add Chemical</button>
+            <button type="button" class="button" onclick="closeChemicalForm()">Cancel</button>
+        </form>
+    </div>
+</div>
+
+<script>
+function openChemicalForm() {
+    document.getElementById('chemicalFormModal').classList.add('active');
+}
+function closeChemicalForm() {
+    document.getElementById('chemicalFormModal').classList.remove('active');
+}
+</script>
 {% endblock %}
