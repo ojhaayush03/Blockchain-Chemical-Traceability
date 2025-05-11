@@ -86,6 +86,7 @@
                 <th>Moved By</th>
                 <th>Purpose</th>
                 <th>Remarks</th>
+                <th>Blockchain Status</th>
             </tr>
             {% for log in logs %}
             <tr>
@@ -95,6 +96,16 @@
                 <td>{{ log.moved_by if log.moved_by else '' }}</td>
                 <td>{{ log.purpose if log.purpose else '' }}</td>
                 <td>{{ log.remarks if log.remarks else '' }}</td>
+                <td>
+                    <div class="blockchain-status" id="verification-{{ loop.index }}">
+                        <span class="status-text">Checking...</span>
+                        <div class="status-details" style="display: none;">
+                            <p class="tx-hash"></p>
+                            <p class="block-number"></p>
+                            <p class="timestamp"></p>
+                        </div>
+                    </div>
+                </td>
             </tr>
             {% endfor %}
         </table>
@@ -162,12 +173,164 @@ document.getElementById('movementForm').addEventListener('submit', function(e) {
     })
     .then(response => response.json())
     .then(data => {
-        alert('Movement logged successfully!');
+        if (data.blockchain && data.blockchain.success) {
+            alert('Movement logged successfully and recorded on blockchain!');
+        } else {
+            alert('Movement logged successfully!');
+        }
         location.reload();
     })
     .catch(error => {
         alert('Error logging movement: ' + error);
     });
 });
+
+// Update verification status
+function updateVerificationStatus(logIndex, verified, details = {}) {
+    const statusElement = document.getElementById(`verification-${logIndex}`);
+    if (statusElement) {
+        const statusText = statusElement.querySelector('.status-text');
+        const statusDetails = statusElement.querySelector('.status-details');
+        
+        if (verified) {
+            statusText.textContent = 'Verified';
+            statusText.className = 'status-text verified';
+            
+            // Update details
+            if (details.tx_hash) {
+                statusDetails.querySelector('.tx-hash').textContent = `Transaction: ${details.tx_hash.substring(0, 10)}...`;
+            }
+            if (details.block_number) {
+                statusDetails.querySelector('.block-number').textContent = `Block: ${details.block_number}`;
+            }
+            if (details.timestamp) {
+                statusDetails.querySelector('.timestamp').textContent = `Time: ${new Date(details.timestamp * 1000).toLocaleString()}`;
+            }
+            statusDetails.style.display = 'block';
+        } else {
+            statusText.textContent = 'Pending';
+            statusText.className = 'status-text pending';
+            statusDetails.style.display = 'none';
+        }
+    }
+}
+
+// Check blockchain status first
+// Add styles for blockchain status
+const style = document.createElement('style');
+style.textContent = `
+    .blockchain-status {
+        position: relative;
+        cursor: pointer;
+    }
+    .blockchain-status .status-text {
+        display: inline-block;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 0.9em;
+    }
+    .blockchain-status .status-text.verified {
+        background-color: #e6ffe6;
+        color: #006600;
+    }
+    .blockchain-status .status-text.pending {
+        background-color: #fff3e6;
+        color: #cc7700;
+    }
+    .blockchain-status .status-text.failed {
+        background-color: #ffe6e6;
+        color: #cc0000;
+    }
+    .blockchain-status .status-details {
+        position: absolute;
+        z-index: 100;
+        background: white;
+        border: 1px solid #ccc;
+        padding: 10px;
+        border-radius: 4px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        min-width: 200px;
+        display: none;
+    }
+    .blockchain-status:hover .status-details {
+        display: block;
+    }
+`;
+document.head.appendChild(style);
+
+// Check blockchain status
+fetch('{{ url_for("main.blockchain_status") }}')
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(statusData => {
+        console.log('Blockchain status:', statusData);
+        
+        // Always try to fetch verification data, even if blockchain status shows disconnected
+        // This allows our fallback mechanisms to work
+        console.log('Fetching blockchain verification data...');
+        
+        // Fetch blockchain verification for this chemical's movements
+        return fetch('{{ url_for("main.blockchain_verification", tag_id=chemical.rfid_tag) }}')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            });
+    })
+    .then(data => {
+        console.log('Blockchain verification data:', data);
+        
+        // Handle different response scenarios
+        if (data.success) {
+            if (data.history && data.history.length === 0) {
+                // No history records found
+                document.querySelectorAll('.blockchain-status').forEach((el, index) => {
+                    updateVerificationStatus(index + 1, false);
+                });
+                return;
+            }
+            
+            // Check if blockchain is enabled
+            if (!data.blockchain_enabled) {
+                document.querySelectorAll('.blockchain-status').forEach((el, index) => {
+                    const statusText = el.querySelector('.status-text');
+                    statusText.textContent = 'Blockchain Disabled';
+                    statusText.className = 'status-text failed';
+                });
+                return;
+            }
+            
+            // Update verification status for each movement
+            data.history.forEach((record, index) => {
+                updateVerificationStatus(index + 1, true, {
+                    tx_hash: record.tx_hash || 'N/A',
+                    block_number: record.block_number || 'N/A',
+                    timestamp: record.timestamp
+                });
+            });
+        } else {
+            // Update all statuses to show error
+            document.querySelectorAll('.blockchain-status').forEach((el, index) => {
+                const statusText = el.querySelector('.status-text');
+                statusText.textContent = 'Verification Failed';
+                statusText.className = 'status-text failed';
+            });
+        }
+    })
+    .catch(error => {
+        console.error('Error fetching blockchain verification:', error);
+        
+        // Update all statuses to show error
+        document.querySelectorAll('.blockchain-status').forEach((el, index) => {
+            const statusText = el.querySelector('.status-text');
+            statusText.textContent = 'Verification Failed';
+            statusText.className = 'status-text failed';
+        });
+    });
 </script>
 {% endblock %}

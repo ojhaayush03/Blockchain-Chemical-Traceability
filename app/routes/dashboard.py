@@ -33,28 +33,37 @@ def add_chemical():
         hazard_class = request.form.get('hazard_class')
         cas_number = request.form.get('cas_number')
         description = request.form.get('description')
+        current_location = request.form.get('current_location', 'Storage')
         
-        # Create new chemical
-        new_chemical = Chemical(
-            name=name,
-            rfid_tag=rfid_tag,
-            manufacturer=manufacturer,
-            quantity=float(quantity) if quantity else None,
-            unit=unit,
-            expiry_date=datetime.strptime(expiry_date, '%Y-%m-%d').date() if expiry_date else None,
-            storage_condition=storage_condition,
-            received_date=datetime.strptime(received_date, '%Y-%m-%d').date() if received_date else None,
-            batch_number=batch_number,
-            hazard_class=hazard_class,
-            cas_number=cas_number,
-            description=description,
-            current_location=request.form.get('current_location', 'Storage')
+        # Prepare data for registration
+        chemical_data = {
+            'name': name,
+            'rfid_tag': rfid_tag,
+            'manufacturer': manufacturer,
+            'quantity': float(quantity) if quantity else None,
+            'unit': unit,
+            'expiry_date': expiry_date,  # The register-chemical endpoint will handle date conversion
+            'storage_condition': storage_condition,
+            'received_date': received_date,  # The register-chemical endpoint will handle date conversion
+            'batch_number': batch_number,
+            'hazard_class': hazard_class,
+            'cas_number': cas_number,
+            'description': description,
+            'current_location': current_location
+        }
+        
+        # Use the register-chemical endpoint to handle both database and blockchain registration
+        import requests
+        
+        # Make request to register-chemical endpoint
+        response = requests.post(
+            'http://localhost:5000/register-chemical',
+            json=chemical_data
         )
         
-        # Add to database
-        db.session.add(new_chemical)
-        db.session.commit()
-        
+        if response.status_code != 201:
+            raise Exception(f"Failed to register chemical: {response.text}")
+            
         # Log initial location if provided
         if 'location' in request.form and request.form.get('location'):
             new_log = MovementLog(

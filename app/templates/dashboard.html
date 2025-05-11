@@ -50,7 +50,7 @@
 <div class="form-modal" id="chemicalFormModal">
     <div class="form-content">
         <h3>Add New Chemical</h3>
-        <form id="addChemicalForm" method="POST" action="{{ url_for('dashboard_bp.add_chemical') }}">
+        <form id="addChemicalForm" method="POST" action="{{ url_for('dashboard_bp.add_chemical') }}" onsubmit="handleFormSubmit(event)">
             <label>Name</label>
             <input type="text" name="name" required>
             <label>RFID Tag</label>
@@ -89,6 +89,43 @@ function openChemicalForm() {
 }
 function closeChemicalForm() {
     document.getElementById('chemicalFormModal').classList.remove('active');
+}
+
+async function handleFormSubmit(event) {
+    event.preventDefault();
+    const form = event.target;
+    const formData = new FormData(form);
+    
+    // Convert FormData to JSON
+    const data = {};
+    for (let [key, value] of formData.entries()) {
+        data[key] = value;
+    }
+    
+    try {
+        const response = await fetch('/register-chemical', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (response.status === 201) {
+            // Show success message with blockchain details
+            const message = `Chemical registered successfully!\n\nBlockchain Transaction Details:\nTransaction Hash: ${result.blockchain?.tx_hash || 'N/A'}\nBlock Number: ${result.blockchain?.block_number || 'N/A'}`;
+            alert(message);
+            
+            // Redirect to refresh the page
+            window.location.href = '{{ url_for("dashboard_bp.dashboard") }}';
+        } else {
+            alert(`Error: ${result.message || 'Failed to register chemical'}`)
+        }
+    } catch (error) {
+        alert(`Error: ${error.message}`);
+    }
 }
 </script>
 {% endblock %}
