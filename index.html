@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chemical Traceability System</title>
+    <link rel="stylesheet" href="./styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+</head>
+<body>
+    <!-- Splash Screen -->
+    <div class="splash-screen" id="splash-screen">
+        <div class="splash-header">
+            <!-- RV Logo Image -->
+            <img class="rv-logo" src="./assets/rvlogo.jpg" alt="RV College Logo">
+        </div>
+
+        <div class="splash-content">
+            <h1>Blockchain-Based Traceability with RFID</h1>
+            <h2>for Chemical Handling</h2>
+            <p>An innovative solution for secure tracking and management of hazardous chemicals through blockchain technology and RFID integration.</p>
+            
+            <div class="loading-bar-container">
+                <div class="loading-bar" id="loading-bar"></div>
+            </div>
+            
+            <div class="blockchain-status-container">
+                <p id="blockchain-connection-status">Connecting to blockchain network...</p>
+            </div>
+        </div>
+
+        <div class="splash-footer">
+            <h3>Project Team</h3>
+            <div class="team-members">
+                <div class="team-member">Labdhi Ranka • 1RV22AI068</div>
+                <div class="team-member">Varun Banda • 1RV22AI062</div>
+                <div class="team-member">Vikhyat Bohara • 1RV22EC181</div>
+                <div class="team-member">Ayush Ojha • 1RV22CD012</div>
+                <div class="team-member">Charanya AR • 1RV22CH008</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Role Selection Screen -->
+    <div class="role-selection" id="role-selection">
+        <div class="welcome-header">
+            <h1>Welcome to ChemTrack</h1>
+            <p>Select your role to continue to the system</p>
+        </div>
+
+        <div class="role-cards">
+            <div class="role-card" id="admin-card">
+                <div class="role-icon admin-icon"><i class="fas fa-crown"></i></div>
+                <h3>Administrator</h3>
+                <p>System management, audit logs, and master control access for the entire traceability network.</p>
+                <div class="role-card-footer">
+                    <button class="select-role-btn admin-btn" data-role="admin">Select Role</button>
+                </div>
+            </div>
+
+            <div class="role-card" id="manufacturer-card">
+                <div class="role-icon manufacturer-icon"><i class="fas fa-industry"></i></div>
+                <h3>Manufacturer</h3>
+                <p>Register chemicals, assign RFID tags, and initiate the supply chain with blockchain verification.</p>
+                <div class="role-card-footer">
+                    <button class="select-role-btn manufacturer-btn" data-role="manufacturer">Select Role</button>
+                </div>
+            </div>
+
+            <div class="role-card" id="distributor-card">
+                <div class="role-icon distributor-icon"><i class="fas fa-truck"></i></div>
+                <h3>Distributor</h3>
+                <p>Manage chemical transportation, track movement, and update blockchain records during transit.</p>
+                <div class="role-card-footer">
+                    <button class="select-role-btn distributor-btn" data-role="distributor">Select Role</button>
+                </div>
+            </div>
+
+            <div class="role-card" id="customer-card">
+                <div class="role-icon customer-icon"><i class="fas fa-flask"></i></div>
+                <h3>Customer</h3>
+                <p>Receive chemicals, verify authenticity, and maintain compliance records for received materials.</p>
+                <div class="role-card-footer">
+                    <button class="select-role-btn customer-btn" data-role="customer">Select Role</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Auth Container (Login/Signup) -->
+    <div class="auth-container" id="auth-container">
+        <div class="auth-card">
+            <div class="auth-sidebar" id="auth-sidebar">
+                <div class="auth-sidebar-header">
+                    <img width="40" height="40" src="./assets/rvlogo.jpg" alt="RV College Logo">
+                    <h2>ChemTrack</h2>
+                    <p>Blockchain Chemical Traceability</p>
+                </div>
+
+                <div class="role-info" id="role-info">
+                    <!-- This content will be dynamically populated -->
+                </div>
+
+                <div class="auth-sidebar-footer">
+                    &copy; 2025 ChemTrack System • RV College of Engineering
+                </div>
+            </div>
+
+            <div class="auth-form-container">
+                <div class="auth-tabs">
+                    <div class="auth-tab active" data-tab="login">Login</div>
+                    <div class="auth-tab" data-tab="signup">Sign Up</div>
+                </div>
+
+                <div class="auth-form active" id="login-form">
+                    <div class="form-group">
+                        <label for="login-email">Email Address</label>
+                        <input type="email" id="login-email" class="form-control" placeholder="Enter your email">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="login-password">Password</label>
+                        <input type="password" id="login-password" class="form-control" placeholder="Enter your password">
+                    </div>
+
+                    <button class="btn btn-primary" id="login-btn">Login</button>
+
+                    <div class="form-footer">
+                        <p>Don't have an account? <a href="#" id="show-signup">Sign up</a></p>
+                    </div>
+                </div>
+
+                <div class="auth-form" id="signup-form">
+                    <div class="form-group">
+                        <label for="signup-name">Full Name</label>
+                        <input type="text" id="signup-name" class="form-control" placeholder="Enter your full name">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="signup-email">Email Address</label>
+                        <input type="email" id="signup-email" class="form-control" placeholder="Enter your email">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="signup-password">Password</label>
+                        <input type="password" id="signup-password" class="form-control" placeholder="Create a password">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="signup-confirm">Confirm Password</label>
+                        <input type="password" id="signup-confirm" class="form-control" placeholder="Confirm your password">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="signup-role">Selected Role</label>
+                        <input type="text" id="signup-role" class="form-control" readonly>
+                    </div>
+
+                    <button class="btn btn-primary" id="signup-btn">Create Account</button>
+
+                    <div class="form-footer">
+                        <p>Already have an account? <a href="#" id="show-login">Login</a></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard Container -->
+    <div class="dashboard-container" id="dashboard-container" style="display: none;">
+        <div class="dashboard-header">
+            <div class="breadcrumb">
+                <a href="#dashboard">Dashboard</a>
+                <span class="separator">/</span>
+                <span class="current">Home</span>
+            </div>
+            <div class="user-menu">
+                <span id="user-greeting">Welcome, User</span>
+                <button id="logout-btn" class="btn btn-link">Logout</button>
+            </div>
+        </div>
+        
+        <div class="dashboard-content">
+            <div class="page-header">
+                <h1 class="page-title">Dashboard</h1>
+            </div>
+            <div id="dashboard-content">
+                <!-- Dynamic content will be loaded here -->
+                <div class="loading-spinner">Loading dashboard...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load blockchain client first -->
+    <script src="blockchain.js"></script>
+    
+    <!-- Load app as a module -->
+    <script type="module" src="app.js"></script>
+</body>
+</html>
