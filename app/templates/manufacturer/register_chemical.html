@@ -1,0 +1,415 @@
+{% extends "base.html" %}
+
+{% block title %}Register New Chemical{% endblock %}
+
+{% block content %}
+<div class="content-container">
+  <div class="header-with-actions">
+    <h2>Register New Chemical</h2>
+    <div class="action-buttons">
+      <a href="{{ url_for('dashboard_bp.dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+    </div>
+  </div>
+  
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+      {% for category, message in messages %}
+      <div class="alert {{ category }}">{{ message }}</div>
+      {% endfor %}
+  {% endif %}
+  {% endwith %}
+  
+  <div class="form-container">
+    <form method="POST" action="{{ url_for('main_bp.register_chemical') }}" enctype="multipart/form-data">
+      {{ form.csrf_token }}
+      
+      <div class="form-section">
+        <h3>Chemical Information</h3>
+        
+        <div class="form-group">
+          {{ form.name.label }} {{ form.name(class="form-control") }}
+          {% if form.name.errors %}
+            <div class="error">
+              {% for error in form.name.errors %}
+              <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="form-group">
+          {{ form.cas_number.label }} {{ form.cas_number(class="form-control") }}
+          <small class="form-text text-muted">Format: XXXXX-XX-X (e.g., 67-64-1 for acetone)</small>
+          {% if form.cas_number.errors %}
+            <div class="error">
+              {% for error in form.cas_number.errors %}
+              <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="form-group">
+          {{ form.chemical_formula.label }} {{ form.chemical_formula(class="form-control") }}
+          <small class="form-text text-muted">Use proper notation (e.g., H₂O, C₂H₅OH)</small>
+          {% if form.chemical_formula.errors %}
+            <div class="error">
+              {% for error in form.chemical_formula.errors %}
+              <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="form-group">
+          {{ form.description.label }} {{ form.description(class="form-control", rows=3) }}
+          {% if form.description.errors %}
+            <div class="error">
+              {% for error in form.description.errors %}
+              <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+      
+      <div class="form-section">
+        <h3>Manufacturing Details</h3>
+        
+        <div class="form-group">
+          {{ form.batch_number.label }} {{ form.batch_number(class="form-control") }}
+          {% if form.batch_number.errors %}
+            <div class="error">
+              {% for error in form.batch_number.errors %}
+              <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="form-row">
+          <div class="form-group half">
+            {{ form.manufacturing_date.label }} {{ form.manufacturing_date(class="form-control", type="date") }}
+            {% if form.manufacturing_date.errors %}
+              <div class="error">
+                {% for error in form.manufacturing_date.errors %}
+                <span>{{ error }}</span>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+          
+          <div class="form-group half">
+            {{ form.expiry_date.label }} {{ form.expiry_date(class="form-control", type="date") }}
+            {% if form.expiry_date.errors %}
+              <div class="error">
+                {% for error in form.expiry_date.errors %}
+                <span>{{ error }}</span>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+        
+        <div class="form-row">
+          <div class="form-group half">
+            {{ form.quantity.label }} {{ form.quantity(class="form-control", type="number", step="0.01") }}
+            {% if form.quantity.errors %}
+              <div class="error">
+                {% for error in form.quantity.errors %}
+                <span>{{ error }}</span>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+          
+          <div class="form-group half">
+            {{ form.unit.label }} {{ form.unit(class="form-control") }}
+            {% if form.unit.errors %}
+              <div class="error">
+                {% for error in form.unit.errors %}
+                <span>{{ error }}</span>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      
+      <div class="form-section">
+        <h3>Safety Information</h3>
+        
+        <div class="form-group">
+          {{ form.hazard_class.label }} {{ form.hazard_class(class="form-control") }}
+          {% if form.hazard_class.errors %}
+            <div class="error">
+              {% for error in form.hazard_class.errors %}
+              <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="form-group">
+          {{ form.storage_conditions.label }} {{ form.storage_conditions(class="form-control") }}
+          {% if form.storage_conditions.errors %}
+            <div class="error">
+              {% for error in form.storage_conditions.errors %}
+              <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="form-group">
+          {{ form.handling_instructions.label }} {{ form.handling_instructions(class="form-control", rows=2) }}
+          {% if form.handling_instructions.errors %}
+            <div class="error">
+              {% for error in form.handling_instructions.errors %}
+              <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+      
+      <div class="form-section">
+        <h3>RFID and Tracking</h3>
+        
+        <div class="form-group">
+          {{ form.rfid_tag.label }} {{ form.rfid_tag(class="form-control") }}
+          <small class="form-text text-muted">Scan or enter the RFID tag ID</small>
+          {% if form.rfid_tag.errors %}
+            <div class="error">
+              {% for error in form.rfid_tag.errors %}
+              <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="form-group">
+          {{ form.initial_location.label }} {{ form.initial_location(class="form-control") }}
+          <small class="form-text text-muted">Where the chemical will be stored initially</small>
+          {% if form.initial_location.errors %}
+            <div class="error">
+              {% for error in form.initial_location.errors %}
+              <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="form-group">
+          {{ form.msds_document.label }} {{ form.msds_document(class="form-control-file") }}
+          <small class="form-text text-muted">Upload Material Safety Data Sheet (PDF format)</small>
+          {% if form.msds_document.errors %}
+            <div class="error">
+              {% for error in form.msds_document.errors %}
+              <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+      
+      <div class="form-section">
+        <h3>Blockchain Registration</h3>
+        <div class="blockchain-info">
+          <p>
+            <i class="fas fa-info-circle"></i>
+            The chemical information will be securely registered on the blockchain for immutable traceability.
+          </p>
+        </div>
+        
+        <div class="form-group checkbox-group">
+          {{ form.confirm_accuracy(class="form-check-input") }}
+          {{ form.confirm_accuracy.label(class="form-check-label") }}
+          {% if form.confirm_accuracy.errors %}
+            <div class="error">
+              {% for error in form.confirm_accuracy.errors %}
+              <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+      
+      <div class="form-actions">
+        {{ form.submit(class="btn btn-primary") }}
+        <a href="{{ url_for('dashboard_bp.dashboard') }}" class="btn btn-outline">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+  .content-container {
+    max-width: 900px;
+    margin: 30px auto;
+    padding: 0 20px;
+  }
+  
+  .header-with-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  
+  .form-container {
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    overflow: hidden;
+  }
+  
+  .form-section {
+    padding: 25px;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .form-section h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #2c3e50;
+  }
+  
+  .form-group {
+    margin-bottom: 20px;
+  }
+  
+  .form-group:last-child {
+    margin-bottom: 0;
+  }
+  
+  .form-row {
+    display: flex;
+    gap: 20px;
+  }
+  
+  .form-group.half {
+    flex: 1;
+  }
+  
+  .form-control {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 16px;
+  }
+  
+  .form-control-file {
+    display: block;
+    width: 100%;
+    padding: 10px 0;
+  }
+  
+  textarea.form-control {
+    resize: vertical;
+    min-height: 80px;
+  }
+  
+  .form-text {
+    color: #6c757d;
+    font-size: 0.85rem;
+    margin-top: 5px;
+  }
+  
+  .checkbox-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  
+  .form-check-input {
+    width: 18px;
+    height: 18px;
+  }
+  
+  .form-check-label {
+    font-weight: bold;
+  }
+  
+  .blockchain-info {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+    border-left: 4px solid #17a2b8;
+  }
+  
+  .blockchain-info p {
+    margin: 0;
+    color: #2c3e50;
+  }
+  
+  .form-actions {
+    padding: 25px;
+    display: flex;
+    gap: 10px;
+  }
+  
+  .btn {
+    display: inline-block;
+    padding: 10px 20px;
+    border-radius: 4px;
+    text-decoration: none;
+    font-weight: bold;
+    cursor: pointer;
+    border: none;
+  }
+  
+  .btn-primary {
+    background-color: #007bff;
+    color: white;
+  }
+  
+  .btn-secondary {
+    background-color: #6c757d;
+    color: white;
+  }
+  
+  .btn-outline {
+    background-color: transparent;
+    color: #6c757d;
+    border: 1px solid #6c757d;
+  }
+  
+  .error {
+    color: #dc3545;
+    font-size: 0.9rem;
+    margin-top: 5px;
+  }
+  
+  .alert {
+    padding: 12px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+  }
+  
+  .alert.error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+  }
+  
+  .alert.success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+  }
+  
+  @media (max-width: 768px) {
+    .form-row {
+      flex-direction: column;
+      gap: 0;
+    }
+    
+    .form-group.half {
+      width: 100%;
+    }
+  }
+</style>
+{% endblock %}

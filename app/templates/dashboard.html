@@ -3,25 +3,57 @@
 {% block title %}Dashboard{% endblock %}
 
 {% block content %}
-<h2>Chemicals List</h2>
-<button class="button" onclick="openChemicalForm()">Add Chemical</button>
-<table>
+<div class="dashboard-header">
+    <h2>Chemical Traceability Dashboard</h2>
+    <div class="role-info">
+        <span>Logged in as:</span>
+        <span class="role-badge {{ current_user.role.name.lower() }}">{{ current_user.role.name }}</span>
+        <span>{{ current_user.organization.name }}</span>
+    </div>
+</div>
+
+{% if current_user.is_admin %}
+<div class="admin-panel">
+    <h3>Administration</h3>
+    <div class="admin-cards">
+        <div class="admin-card">
+            <h4>Organizations</h4>
+            <p>{{ organizations|length }} registered organizations</p>
+            <a href="#" class="btn btn-primary">Manage Organizations</a>
+        </div>
+        <div class="admin-card">
+            <h4>Users</h4>
+            <a href="#" class="btn btn-primary">Manage Users</a>
+        </div>
+        <div class="admin-card">
+            <h4>Blockchain Status</h4>
+            <a href="#" class="btn btn-primary">View Anomalies</a>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<h3>Chemicals List</h3>
+
+{% if current_user.role.name == 'MANUFACTURER' %}
+<button class="button btn btn-primary" onclick="openChemicalForm()">Register New Chemical</button>
+{% endif %}
+<table class="data-table">
     <tr>
         <th>ID</th>
         <th>Name</th>
         <th>RFID Tag</th>
-        <th>Manufacturer</th>
+        {% if current_user.is_admin %}
+        <th>Organization</th>
+        {% endif %}
         <th>Quantity</th>
         <th>Unit</th>
         <th>Expiry Date</th>
-        <th>Storage Condition</th>
-        <th>Received Date</th>
-        <th>Batch Number</th>
-        <th>Hazard Class</th>
-        <th>CAS Number</th>
-        <th>Description</th>
-        <th>Status</th>
         <th>Location</th>
+        <th>Status</th>
+        {% if current_user.role.name in ['DISTRIBUTOR', 'ADMIN'] %}
+        <th>Validation Status</th>
+        {% endif %}
         <th>Actions</th>
     </tr>
     {% for chemical in chemicals %}
@@ -29,34 +61,52 @@
         <td>{{ chemical.id }}</td>
         <td>{{ chemical.name }}</td>
         <td>{{ chemical.rfid_tag }}</td>
-        <td>{{ chemical.manufacturer }}</td>
+        {% if current_user.is_admin %}
+        <td>{{ chemical.manufacturer_organization.name }}</td>
+        {% endif %}
         <td>{{ chemical.quantity }}</td>
         <td>{{ chemical.unit }}</td>
         <td>{{ chemical.expiry_date }}</td>
-        <td>{{ chemical.storage_condition }}</td>
-        <td>{{ chemical.received_date }}</td>
-        <td>{{ chemical.batch_number }}</td>
-        <td>{{ chemical.hazard_class }}</td>
-        <td>{{ chemical.cas_number }}</td>
-        <td>{{ chemical.description }}</td>
-        <td>{{ chemical.status if chemical.status else '' }}</td>
         <td>{{ chemical.current_location if chemical.current_location else '' }}</td>
-        <td><a href="{{ url_for('dashboard_bp.chemical_detail', chemical_id=chemical.id) }}" class="button">View</a></td>
+        <td>{{ chemical.status if chemical.status else '' }}</td>
+        {% if current_user.role.name in ['DISTRIBUTOR', 'ADMIN'] %}
+        <td>
+            {% if chemical.latest_movement and chemical.latest_movement.validation_status %}
+                <span class="validation-status {{ chemical.latest_movement.validation_status }}">{{ chemical.latest_movement.validation_status }}</span>
+            {% else %}
+                <span class="validation-status">N/A</span>
+            {% endif %}
+        </td>
+        {% endif %}
+        <td>
+            <div class="action-buttons">
+                <a href="{{ url_for('dashboard_bp.chemical_detail', chemical_id=chemical.id) }}" class="btn btn-primary btn-sm">View</a>
+                
+                {% if current_user.role.name == 'DISTRIBUTOR' and chemical.current_custodian_id == current_user.organization_id %}
+                <a href="#" onclick="openMoveModal('{{ chemical.id }}')" class="btn btn-warning btn-sm">Move</a>
+                {% endif %}
+                
+                {% if current_user.role.name == 'CUSTOMER' and chemical.current_custodian_id == current_user.organization_id %}
+                <a href="#" onclick="openReceiptModal('{{ chemical.id }}')" class="btn btn-success btn-sm">Confirm Receipt</a>
+                {% endif %}
+            </div>
+        </td>
     </tr>
     {% endfor %}
 </table>
 
-<!-- Modal Form for Adding Chemical -->
+<!-- Modal Form for Chemical Registration - Only for Manufacturers -->
+{% if current_user.role.name == 'MANUFACTURER' %}
 <div class="form-modal" id="chemicalFormModal">
     <div class="form-content">
-        <h3>Add New Chemical</h3>
+        <h3>Register New Chemical</h3>
         <form id="addChemicalForm" method="POST" action="{{ url_for('dashboard_bp.add_chemical') }}" onsubmit="handleFormSubmit(event)">
             <label>Name</label>
             <input type="text" name="name" required>
             <label>RFID Tag</label>
             <input type="text" name="rfid_tag" required>
-            <label>Manufacturer</label>
-            <input type="text" name="manufacturer">
+            <!-- We don't need to input manufacturer name as it's automatically set to current organization -->
+            <input type="hidden" name="manufacturer" value="{{ current_user.organization.name }}">
             <label>Quantity</label>
             <input type="number" step="any" name="quantity">
             <label>Unit</label>
@@ -82,6 +132,7 @@
         </form>
     </div>
 </div>
+{% endif %}
 
 <script>
 function openChemicalForm() {
@@ -96,6 +147,10 @@ async function handleFormSubmit(event) {
     const form = event.target;
     const formData = new FormData(form);
     
+    // Add organization context
+    formData.append('organization_id', '{{ current_user.organization_id }}');
+    formData.append('registered_by_id', '{{ current_user.id }}');
+    
     // Convert FormData to JSON
     const data = {};
     for (let [key, value] of formData.entries()) {
@@ -106,7 +161,8 @@ async function handleFormSubmit(event) {
         const response = await fetch('/register-chemical', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}' // Add CSRF token for security
             },
             body: JSON.stringify(data)
         });
@@ -116,16 +172,39 @@ async function handleFormSubmit(event) {
         if (response.status === 201) {
             // Show success message with blockchain details
             const message = `Chemical registered successfully!\n\nBlockchain Transaction Details:\nTransaction Hash: ${result.blockchain?.tx_hash || 'N/A'}\nBlock Number: ${result.blockchain?.block_number || 'N/A'}`;
-            alert(message);
+            showNotification('success', 'Chemical registered successfully!');
             
             // Redirect to refresh the page
             window.location.href = '{{ url_for("dashboard_bp.dashboard") }}';
         } else {
-            alert(`Error: ${result.message || 'Failed to register chemical'}`)
+            showNotification('error', `Error: ${result.message || 'Failed to register chemical'}`);
         }
     } catch (error) {
-        alert(`Error: ${error.message}`);
+        showNotification('error', `Error: ${error.message}`);
     }
+}
+
+function showNotification(type, message) {
+    // Create a notification element
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.innerHTML = message;
+    
+    // Add to document body
+    document.body.appendChild(notification);
+    
+    // Show the notification
+    setTimeout(() => {
+        notification.className += ' show';
+    }, 100);
+    
+    // Hide and remove after 5 seconds
+    setTimeout(() => {
+        notification.className = notification.className.replace(' show', '');
+        setTimeout(() => {
+            document.body.removeChild(notification);
+        }, 300);
+    }, 5000);
 }
 </script>
 {% endblock %}

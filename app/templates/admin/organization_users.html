@@ -1,0 +1,350 @@
+{% extends "base.html" %}
+
+{% block title %}{{ organization.name }} - Users{% endblock %}
+
+{% block content %}
+<div class="admin-content">
+  <div class="header-with-actions">
+    <h2>{{ organization.name }} - Users</h2>
+    <div class="action-buttons">
+      <a href="{{ url_for('admin_bp.organization_list') }}" class="btn btn-secondary">Back to Organizations</a>
+    </div>
+  </div>
+  
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+      {% for category, message in messages %}
+      <div class="alert {{ category }}">{{ message }}</div>
+      {% endfor %}
+  {% endif %}
+  {% endwith %}
+  
+  <div class="organization-info">
+    <div class="info-card">
+      <div class="info-header">
+        <h3>Organization Details</h3>
+      </div>
+      <div class="info-body">
+        <div class="info-row">
+          <div class="info-label">Domain:</div>
+          <div class="info-value">{{ organization.email_domain }}</div>
+        </div>
+        <div class="info-row">
+          <div class="info-label">Status:</div>
+          <div class="info-value">
+            <span class="status-badge {{ 'active' if organization.active else 'inactive' }}">
+              {{ "Active" if organization.active else "Inactive" }}
+            </span>
+          </div>
+        </div>
+        <div class="info-row">
+          <div class="info-label">Permissions:</div>
+          <div class="info-value">
+            <div class="permission-badges">
+              {% if organization.can_manufacture %}
+              <span class="permission-badge manufacturer">Manufacturer</span>
+              {% endif %}
+              {% if organization.can_distribute %}
+              <span class="permission-badge distributor">Distributor</span>
+              {% endif %}
+              {% if organization.can_receive %}
+              <span class="permission-badge customer">Customer</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        <div class="info-row">
+          <div class="info-label">Description:</div>
+          <div class="info-value">{{ organization.description or "No description provided" }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="users-section">
+    <h3>Users ({{ users|length }})</h3>
+    
+    {% if users %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Username</th>
+          <th>Email</th>
+          <th>Name</th>
+          <th>Role</th>
+          <th>Status</th>
+          <th>Created</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for user in users %}
+        <tr>
+          <td>{{ user.id }}</td>
+          <td>{{ user.username }}</td>
+          <td>{{ user.email }}</td>
+          <td>{{ user.first_name }} {{ user.last_name }}</td>
+          <td>
+            <span class="role-badge {{ user.role.value }}">{{ user.role.value }}</span>
+          </td>
+          <td>{{ "Active" if user.active else "Inactive" }}</td>
+          <td>{{ user.created_at.strftime('%Y-%m-%d') }}</td>
+          <td>
+            <div class="action-buttons">
+              <a href="{{ url_for('auth_bp.view_profile', user_id=user.id) }}" class="btn btn-sm btn-info">View Profile</a>
+              {% if user.active %}
+              <form action="{{ url_for('admin_bp.deactivate_user', user_id=user.id) }}" method="POST" style="display:inline;">
+                <button type="submit" class="btn btn-sm btn-warning">Deactivate</button>
+              </form>
+              {% else %}
+              <form action="{{ url_for('admin_bp.activate_user', user_id=user.id) }}" method="POST" style="display:inline;">
+                <button type="submit" class="btn btn-sm btn-success">Activate</button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+      <p>No users found for this organization.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<style>
+  .admin-content {
+    padding: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  
+  .header-with-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  
+  .organization-info {
+    margin-bottom: 30px;
+  }
+  
+  .info-card {
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    overflow: hidden;
+  }
+  
+  .info-header {
+    padding: 15px 20px;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .info-header h3 {
+    margin: 0;
+    color: #2c3e50;
+  }
+  
+  .info-body {
+    padding: 20px;
+  }
+  
+  .info-row {
+    display: flex;
+    margin-bottom: 15px;
+  }
+  
+  .info-row:last-child {
+    margin-bottom: 0;
+  }
+  
+  .info-label {
+    width: 120px;
+    font-weight: bold;
+    color: #6c757d;
+  }
+  
+  .info-value {
+    flex: 1;
+  }
+  
+  .status-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: bold;
+  }
+  
+  .status-badge.active {
+    background-color: #28a745;
+    color: white;
+  }
+  
+  .status-badge.inactive {
+    background-color: #dc3545;
+    color: white;
+  }
+  
+  .permission-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+  
+  .permission-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    text-transform: lowercase;
+    font-size: 0.8rem;
+    font-weight: bold;
+  }
+  
+  .permission-badge.manufacturer {
+    background-color: #007bff;
+    color: white;
+  }
+  
+  .permission-badge.distributor {
+    background-color: #fd7e14;
+    color: white;
+  }
+  
+  .permission-badge.customer {
+    background-color: #28a745;
+    color: white;
+  }
+  
+  .users-section {
+    margin-top: 30px;
+  }
+  
+  .users-section h3 {
+    margin-bottom: 15px;
+  }
+  
+  .table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+  }
+  
+  .table th, .table td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+  }
+  
+  .table th {
+    background-color: #f8f9fa;
+  }
+  
+  .role-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    text-transform: capitalize;
+  }
+  
+  .role-badge.admin {
+    background-color: #6f42c1;
+    color: white;
+  }
+  
+  .role-badge.manufacturer {
+    background-color: #007bff;
+    color: white;
+  }
+  
+  .role-badge.distributor {
+    background-color: #fd7e14;
+    color: white;
+  }
+  
+  .role-badge.customer {
+    background-color: #28a745;
+    color: white;
+  }
+  
+  .action-buttons {
+    display: flex;
+    gap: 5px;
+  }
+  
+  .btn {
+    display: inline-block;
+    padding: 8px 15px;
+    border-radius: 4px;
+    text-decoration: none;
+    font-weight: bold;
+    cursor: pointer;
+    border: none;
+  }
+  
+  .btn-sm {
+    padding: 5px 10px;
+    font-size: 0.875rem;
+  }
+  
+  .btn-success {
+    background-color: #28a745;
+    color: white;
+  }
+  
+  .btn-primary {
+    background-color: #007bff;
+    color: white;
+  }
+  
+  .btn-secondary {
+    background-color: #6c757d;
+    color: white;
+  }
+  
+  .btn-warning {
+    background-color: #ffc107;
+    color: #212529;
+  }
+  
+  .btn-info {
+    background-color: #17a2b8;
+    color: white;
+  }
+  
+  .empty-state {
+    padding: 30px;
+    text-align: center;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    color: #6c757d;
+  }
+  
+  .alert {
+    padding: 12px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+  }
+  
+  .alert.error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+  }
+  
+  .alert.success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+  }
+</style>
+{% endblock %}

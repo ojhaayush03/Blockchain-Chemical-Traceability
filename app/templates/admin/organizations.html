@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+
+{% block title %}Organization Management{% endblock %}
+
+{% block content %}
+<div class="admin-content">
+  <div class="header-with-actions">
+    <h2>Organizations</h2>
+    <div class="action-buttons">
+      <a href="{{ url_for('admin_bp.add_organization') }}" class="btn btn-success">Add New Organization</a>
+      <a href="{{ url_for('admin_bp.admin_dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+    </div>
+  </div>
+  
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+      {% for category, message in messages %}
+      <div class="alert {{ category }}">{{ message }}</div>
+      {% endfor %}
+  {% endif %}
+  {% endwith %}
+  
+  <div class="filter-section">
+    <div class="filter-group">
+      <label>Filter by Permission:</label>
+      <select id="permissionFilter" onchange="filterOrganizations()">
+        <option value="all">All Permissions</option>
+        <option value="manufacturer">Manufacturer</option>
+        <option value="distributor">Distributor</option>
+        <option value="customer">Customer</option>
+      </select>
+    </div>
+    
+    <div class="filter-group">
+      <label>Filter by Status:</label>
+      <select id="statusFilter" onchange="filterOrganizations()">
+        <option value="all">All Statuses</option>
+        <option value="active">Active</option>
+        <option value="inactive">Inactive</option>
+      </select>
+    </div>
+    
+    <button class="btn btn-outline-secondary" onclick="resetFilters()">Reset Filters</button>
+  </div>
+  
+  <div class="organizations-list">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>Email Domain</th>
+          <th>Permissions</th>
+          <th>Users</th>
+          <th>Status</th>
+          <th>Created</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="orgTableBody">
+        {% for org in organizations %}
+        <tr data-manufacturer="{{ 'true' if org.can_manufacture else 'false' }}" 
+            data-distributor="{{ 'true' if org.can_distribute else 'false' }}" 
+            data-customer="{{ 'true' if org.can_receive else 'false' }}" 
+            data-status="{{ 'active' if org.active else 'inactive' }}">
+          <td>{{ org.id }}</td>
+          <td>{{ org.name }}</td>
+          <td>{{ org.email_domain }}</td>
+          <td>
+            <div class="permission-badges">
+              {% if org.can_manufacture %}
+              <span class="permission-badge manufacturer">Manufacturer</span>
+              {% endif %}
+              {% if org.can_distribute %}
+              <span class="permission-badge distributor">Distributor</span>
+              {% endif %}
+              {% if org.can_receive %}
+              <span class="permission-badge customer">Customer</span>
+              {% endif %}
+            </div>
+          </td>
+          <td>{{ org.users|length }}</td>
+          <td>{{ "Active" if org.active else "Inactive" }}</td>
+          <td>{{ org.created_at.strftime('%Y-%m-%d') }}</td>
+          <td>
+            <div class="action-buttons">
+              <a href="{{ url_for('admin_bp.edit_organization', org_id=org.id) }}" class="btn btn-sm btn-primary">Edit</a>
+              {% if org.active %}
+              <form action="{{ url_for('admin_bp.deactivate_organization', org_id=org.id) }}" method="POST" style="display:inline;">
+                <button type="submit" class="btn btn-sm btn-warning">Deactivate</button>
+              </form>
+              {% else %}
+              <form action="{{ url_for('admin_bp.activate_organization', org_id=org.id) }}" method="POST" style="display:inline;">
+                <button type="submit" class="btn btn-sm btn-success">Activate</button>
+              </form>
+              {% endif %}
+              <a href="{{ url_for('admin_bp.view_organization_users', org_id=org.id) }}" class="btn btn-sm btn-info">View Users</a>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<style>
+  .admin-content {
+    padding: 20px;
+  }
+  
+  .header-with-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  
+  .filter-section {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  
+  .filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  
+  .filter-group label {
+    font-weight: bold;
+    font-size: 0.9rem;
+  }
+  
+  .filter-group select {
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+  }
+  
+  .table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+  }
+  
+  .table th, .table td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+  }
+  
+  .table th {
+    background-color: #f8f9fa;
+  }
+  
+  .action-buttons {
+    display: flex;
+    gap: 5px;
+  }
+  
+  .permission-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+  
+  .permission-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    text-transform: lowercase;
+    font-size: 0.8rem;
+    font-weight: bold;
+  }
+  
+  .permission-badge.manufacturer {
+    background-color: #007bff;
+    color: white;
+  }
+  
+  .permission-badge.distributor {
+    background-color: #fd7e14;
+    color: white;
+  }
+  
+  .permission-badge.customer {
+    background-color: #28a745;
+    color: white;
+  }
+  
+  .btn {
+    display: inline-block;
+    padding: 8px 15px;
+    border-radius: 4px;
+    text-decoration: none;
+    font-weight: bold;
+    cursor: pointer;
+    border: none;
+  }
+  
+  .btn-sm {
+    padding: 5px 10px;
+    font-size: 0.875rem;
+  }
+  
+  .btn-success {
+    background-color: #28a745;
+    color: white;
+  }
+  
+  .btn-primary {
+    background-color: #007bff;
+    color: white;
+  }
+  
+  .btn-secondary {
+    background-color: #6c757d;
+    color: white;
+  }
+  
+  .btn-warning {
+    background-color: #ffc107;
+    color: #212529;
+  }
+  
+  .btn-info {
+    background-color: #17a2b8;
+    color: white;
+  }
+  
+  .btn-outline-secondary {
+    background-color: transparent;
+    color: #6c757d;
+    border: 1px solid #6c757d;
+  }
+  
+  .alert {
+    padding: 12px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+  }
+  
+  .alert.error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+  }
+  
+  .alert.success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+  }
+  
+  .alert.info {
+    background-color: #d1ecf1;
+    color: #0c5460;
+    border: 1px solid #bee5eb;
+  }
+</style>
+
+<script>
+  function filterOrganizations() {
+    const permissionFilter = document.getElementById('permissionFilter').value;
+    const statusFilter = document.getElementById('statusFilter').value;
+    
+    const rows = document.querySelectorAll('#orgTableBody tr');
+    
+    rows.forEach(row => {
+      let permissionMatch = true;
+      
+      if (permissionFilter !== 'all') {
+        permissionMatch = row.getAttribute(`data-${permissionFilter}`) === 'true';
+      }
+      
+      const statusMatch = statusFilter === 'all' || row.getAttribute('data-status') === statusFilter;
+      
+      if (permissionMatch && statusMatch) {
+        row.style.display = '';
+      } else {
+        row.style.display = 'none';
+      }
+    });
+  }
+  
+  function resetFilters() {
+    document.getElementById('permissionFilter').value = 'all';
+    document.getElementById('statusFilter').value = 'all';
+    filterOrganizations();
+  }
+</script>
+{% endblock %}

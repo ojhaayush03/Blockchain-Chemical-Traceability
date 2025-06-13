@@ -1,7 +1,8 @@
 from flask import Blueprint, request, jsonify, redirect, url_for, current_app
+from flask_login import current_user, login_required
 from app.models import Chemical, MovementLog
 from app.extensions import db
-from datetime import datetime
+from datetime import datetime, timedelta
 import traceback  # Add traceback for better error reporting
 import os  # Add os for environment variable access
 
@@ -58,9 +59,100 @@ def get_blockchain_history_direct(client, rfid_tag):
             'history': []
         }
 
+# Define a list of authorized personnel who can move chemicals
+AUTHORIZED_PERSONNEL = ['admin', 'lab_manager', 'scientist', 'technician']
+
+# Define valid locations for chemicals
+VALID_LOCATIONS = ['Storage', 'Lab A', 'Lab B', 'Lab C', 'Disposal', 'Testing Area', 'Research Wing']
+
+def validate_movement(data):
+    """
+    Validate movement logs for suspicious activity or false entries.
+    Returns a dict with status ('verified', 'suspicious', 'pending') and reason.
+    """
+    try:
+        tag_id = data['tag_id']
+        location = data['location']
+        moved_by = data.get('moved_by', '')
+        purpose = data.get('purpose', '')
+        
+        # Default to pending until we've done all checks
+        result = {
+            'status': 'pending',
+            'reason': None
+        }
+        
+        # Check 1: Verify that the tag_id exists
+        chemical = Chemical.query.filter_by(rfid_tag=tag_id).first()
+        if not chemical:
+            result['status'] = 'suspicious'
+            result['reason'] = 'Chemical with this RFID tag does not exist'
+            print(f"Validation failed: {result['reason']}")
+            return result
+        
+        # Check 2: Location validation
+        if location not in VALID_LOCATIONS:
+            result['status'] = 'suspicious'
+            result['reason'] = f"Invalid location: {location}"
+            print(f"Validation failed: {result['reason']}")
+            return result
+            
+        # Check 3: Personnel validation
+        if moved_by and moved_by.lower() not in [p.lower() for p in AUTHORIZED_PERSONNEL]:
+            result['status'] = 'suspicious'
+            result['reason'] = f"Unauthorized personnel: {moved_by}"
+            print(f"Validation failed: {result['reason']}")
+            return result
+            
+        # Check 4: Timing validation - check for impossible movement sequences
+        # Get the most recent movement log for this chemical
+        latest_log = MovementLog.query.filter_by(
+            tag_id=tag_id
+        ).order_by(MovementLog.timestamp.desc()).first()
+        
+        if latest_log:
+            time_since_last_move = datetime.utcnow() - latest_log.timestamp
+            
+            # If the last move was less than 30 seconds ago and to a different location,
+            # it's suspiciously fast
+            if time_since_last_move < timedelta(seconds=30) and latest_log.location != location:
+                result['status'] = 'suspicious'
+                result['reason'] = f"Suspiciously rapid movement: {latest_log.location} to {location} in {time_since_last_move.total_seconds()} seconds"
+                print(f"Validation failed: {result['reason']}")
+                return result
+            
+            # If chemical was in disposal but now being moved elsewhere, that's suspicious
+            if latest_log.location == 'Disposal' and location != 'Disposal':
+                result['status'] = 'suspicious'
+                result['reason'] = f"Invalid movement from Disposal to {location}"
+                print(f"Validation failed: {result['reason']}")
+                return result
+                
+        # Check 5: Purpose validation
+        suspicious_terms = ['illegal', 'unauthorized', 'theft', 'unknown', 'secret']
+        if purpose and any(term in purpose.lower() for term in suspicious_terms):
+            result['status'] = 'suspicious'
+            result['reason'] = f"Suspicious purpose detected: {purpose}"
+            print(f"Validation failed: {result['reason']}")
+            return result
+            
+        # All checks passed, movement is verified
+        result['status'] = 'verified'
+        print("Movement validated successfully")
+        return result
+        
+    except Exception as e:
+        print(f"Error in movement validation: {str(e)}")
+        traceback.print_exc()
+        return {
+            'status': 'suspicious',
+            'reason': f"Validation error: {str(e)}"
+        }
+
 main = Blueprint('main', __name__)
 
 @main.route('/register-chemical', methods=['POST'])
+@login_required
 def register_chemical():
     data = request.get_json()
     
@@ -76,7 +168,6 @@ def register_chemical():
     new_chemical = Chemical(
         name=data['name'],
         rfid_tag=data['rfid_tag'],
-        manufacturer=data.get('manufacturer', ''),
         current_location=data.get('current_location', 'Storage'),
         quantity=data.get('quantity'),
         unit=data.get('unit'),
@@ -86,7 +177,11 @@ def register_chemical():
         batch_number=data.get('batch_number'),
         hazard_class=data.get('hazard_class'),
         cas_number=data.get('cas_number'),
-        description=data.get('description')
+        description=data.get('description'),
+        # Required fields from the Chemical model
+        registered_by_user_id=current_user.id,
+        manufacturer_org_id=current_user.organization_id,
+        current_custodian_org_id=current_user.organization_id
     )
     
     # Add to local database
@@ -113,6 +208,7 @@ def register_chemical():
     return jsonify(response), 201
 
 @main.route('/log-event', methods=['POST'])
+@login_required
 def log_event():
     try:
         # Try to get JSON data first
@@ -126,21 +222,39 @@ def log_event():
         if 'tag_id' not in data or 'location' not in data:
             return jsonify({'error': 'Missing required fields: tag_id and location are required'}), 400
         
-        # Create new movement log with all fields
+        # First, validate the movement log for suspicious/false entries
+        validation_result = validate_movement(data)
+        
+        # Find the chemical to get its ID
+        chemical = Chemical.query.filter_by(rfid_tag=data['tag_id']).first()
+        if not chemical:
+            return jsonify({'error': f"No chemical found with RFID tag {data['tag_id']}"}), 400
+            
+        # Create new movement log with all required fields and validation status
         new_log = MovementLog(
             tag_id=data['tag_id'],
             location=data['location'],
             timestamp=datetime.utcnow(),
-            moved_by=data.get('moved_by'),
             purpose=data.get('purpose'),
             status=data.get('status'),
-            remarks=data.get('remarks')
+            remarks=data.get('remarks'),
+            validation_status=validation_result['status'],
+            # Required fields
+            moved_by_user_id=current_user.id,
+            source_org_id=current_user.organization_id,  # Assuming the source is the current user's organization
+            destination_org_id=current_user.organization_id,  # For simplicity, using same org as destination
+            chemical_id=chemical.id
         )
         
-        # Update the chemical's current location
+        # Update the chemical's current location only if movement is not suspicious
         chemical = Chemical.query.filter_by(rfid_tag=data['tag_id']).first()
+        
         if chemical:
-            chemical.current_location = data['location']
+            if validation_result['status'] != 'suspicious':
+                chemical.current_location = data['location']
+                print(f"Chemical location updated to: {data['location']}")
+            else:
+                print("Warning: Chemical location NOT updated due to suspicious movement")
         else:
             # Log a warning but don't fail if chemical not found
             print(f"Warning: No chemical found with RFID tag {data['tag_id']}")
@@ -148,9 +262,17 @@ def log_event():
         db.session.add(new_log)
         db.session.commit()
         
-        # Record on blockchain if client is available
+        # Record on blockchain ONLY if the movement is verified (not suspicious)
         blockchain_result = None
-        if hasattr(current_app, 'blockchain_client') and current_app.blockchain_client:
+        if validation_result['status'] == 'suspicious':
+            print(f"WARNING: Suspicious movement detected! Not recording on blockchain: {validation_result['reason']}")
+            # Update the movement log to indicate it was not recorded on blockchain
+            new_log.blockchain_recorded = False
+            blockchain_result = {
+                'success': False,
+                'error': f"Movement validation failed: {validation_result['reason']}"
+            }
+        elif hasattr(current_app, 'blockchain_client') and current_app.blockchain_client:
             try:
                 blockchain_result = current_app.blockchain_client.record_movement(
                     data['tag_id'],
@@ -160,7 +282,14 @@ def log_event():
                     data.get('status', '')
                 )
                 
-                if not blockchain_result.get('success', False):
+                # Update the log with blockchain recording status
+                if blockchain_result.get('success', False):
+                    new_log.blockchain_recorded = True
+                    db.session.commit()
+                    print(f"SUCCESS: Movement recorded on blockchain: tx_hash={blockchain_result.get('transaction_hash', 'Unknown')}")
+                else:
+                    new_log.blockchain_recorded = False
+                    db.session.commit()
                     print(f"WARNING: Blockchain transaction failed: {blockchain_result.get('error', 'Unknown error')}")
             except Exception as e:
                 print(f"ERROR: Failed to record movement on blockchain: {str(e)}")
@@ -169,16 +298,18 @@ def log_event():
                     'success': False,
                     'error': str(e)
                 }
-        
+                # Update the log with blockchain recording status
+                new_log.blockchain_recorded = False
+                db.session.commit()
+
         response = {
             'message': 'Event logged successfully',
-            'local_db_success': True
+            'validation_status': validation_result['status'],
+            'blockchain_enabled': hasattr(current_app, 'blockchain_client') and current_app.blockchain_client is not None,
+            'blockchain_result': blockchain_result
         }
-        
-        if blockchain_result:
-            response['blockchain'] = blockchain_result
-            response['blockchain_success'] = blockchain_result.get('success', False)
-        
+        response['blockchain_success'] = blockchain_result.get('success', False)
+
         # Return JSON response for API calls, or redirect for form submissions
         if request.is_json:
             # If blockchain transaction failed but local DB succeeded, return 207 Multi-Status
@@ -307,10 +438,12 @@ def blockchain_verification(tag_id):
         
         local_history = [{
             'location': log.location,
-            'moved_by': log.moved_by if log.moved_by else '',
+            'moved_by': log.moved_by_user.username if log.moved_by_user else '',
             'purpose': log.purpose if log.purpose else '',
             'status': log.status if log.status else '',
             'timestamp': int(log.timestamp.timestamp()),
+            'validation_status': log.validation_status,
+            'blockchain_recorded': log.blockchain_recorded,
             'blockchain_verified': False
         } for log in local_logs]
         
@@ -388,17 +521,27 @@ def blockchain_verification(tag_id):
                     blockchain_history = []
                     for i in range(count):
                         print(f"DEBUG: Fetching movement record {i+1}/{count}")
-                        location, moved_by, purpose, status, timestamp = current_app.blockchain_client.contract.functions.getMovementRecord(
-                            tag_id, i
-                        ).call()
+                        try:
+                            # Try with 6 values first (as per the contract definition)
+                            location, sourceLocation, purpose, status, validationStatus, timestamp = current_app.blockchain_client.contract.functions.getMovementRecord(
+                                tag_id, i
+                            ).call()
+                        except ValueError:
+                            # If that fails, try with 5 values (older contract version or different implementation)
+                            print("DEBUG: Falling back to 5-value unpacking")
+                            location, sourceLocation, purpose, status, timestamp = current_app.blockchain_client.contract.functions.getMovementRecord(
+                                tag_id, i
+                            ).call()
+                            validationStatus = 'verified'  # Default value if not provided by contract
                         
                         print(f"DEBUG: Record {i+1}: location={location}, timestamp={timestamp}")
                         
                         blockchain_history.append({
                             'location': location,
-                            'moved_by': moved_by,
+                            'source_location': sourceLocation,
                             'purpose': purpose,
                             'status': status,
+                            'validation_status': validationStatus,
                             'timestamp': timestamp,
                             'blockchain_verified': True
                         })
@@ -445,8 +588,14 @@ def blockchain_verification(tag_id):
                     for j, blockchain_record in enumerate(blockchain_history):
                         if (local_record['location'] == blockchain_record['location'] and
                             abs(local_record['timestamp'] - blockchain_record['timestamp']) < 300):  # Within 5 minutes
-                            local_record['blockchain_verified'] = True
-                            print(f"DEBUG: Verified record {i} (local) matches record {j} (blockchain)")
+                            # Only verify records that weren't marked as suspicious
+                            if local_logs[i].validation_status != 'suspicious':
+                                local_record['blockchain_verified'] = True
+                                print(f"DEBUG: Verified record {i} (local) matches record {j} (blockchain)")
+                            else:
+                                local_record['blockchain_verified'] = False
+                                local_record['verification_failed_reason'] = 'Suspicious movement not recorded on blockchain'
+                                print(f"DEBUG: Record {i} (local) matched but was previously marked as suspicious")
                             break
                 
                 return jsonify({

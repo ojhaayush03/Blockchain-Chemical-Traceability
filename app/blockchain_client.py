@@ -112,12 +112,12 @@ class BlockchainClient:
             self.connected = False
             return False
     
-    def register_chemical(self, rfid_tag, name, manufacturer):
+    def register_chemical(self, rfid_tag, name):
         """Register a new chemical on the blockchain"""
         try:
             # Build transaction
             txn = self.contract.functions.registerChemical(
-                rfid_tag, name, manufacturer
+                rfid_tag, name
             ).build_transaction({
                 'from': self.account_address,
                 'nonce': self.w3.eth.get_transaction_count(self.account_address),
@@ -144,37 +144,7 @@ class BlockchainClient:
                 'error': str(e)
             }
     
-    def record_movement(self, rfid_tag, location, moved_by, purpose, status):
-        """Record a chemical movement on the blockchain"""
-        try:
-            # Build transaction
-            txn = self.contract.functions.recordMovement(
-                rfid_tag, location, moved_by or "", purpose or "", status or ""
-            ).build_transaction({
-                'from': self.account_address,
-                'nonce': self.w3.eth.get_transaction_count(self.account_address),
-                'gas': 2000000,
-                'gasPrice': self.w3.eth.gas_price
-            })
-            
-            # Sign and send transaction
-            signed_txn = self.w3.eth.account.sign_transaction(txn, private_key=self.private_key)
-            tx_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
-            
-            # Wait for transaction receipt
-            tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
-            
-            return {
-                'success': True,
-                'transaction_hash': tx_hash.hex(),
-                'block_number': tx_receipt['blockNumber'],
-                'contract_address': self.contract_address
-            }
-        except Exception as e:
-            return {
-                'success': False,
-                'error': str(e)
-            }
+
     
     def record_movement(self, rfid_tag, location, moved_by=None, purpose=None, status=None):
         """Record a chemical movement on the blockchain"""
@@ -200,7 +170,7 @@ class BlockchainClient:
             purpose = str(purpose or "")
             status = str(status or "")
             
-            print(f"DEBUG: Parameters for recordMovement:")
+            print("DEBUG: Parameters for recordMovement:")
             print(f"  - RFID Tag: {rfid_tag}")
             print(f"  - Location: {location}")
             print(f"  - Moved By: {moved_by}")
@@ -218,25 +188,23 @@ class BlockchainClient:
                 ).estimate_gas({
                     'from': self.account_address
                 })
-                print(f"DEBUG: Gas estimate: {gas_estimate}")
+                
+                print(f"DEBUG: Gas estimate for transaction: {gas_estimate}")
+                
+                # Add 10% buffer to gas estimate
+                gas_with_buffer = int(gas_estimate * 1.1)
             except Exception as e:
-                print(f"ERROR: Failed to estimate gas: {str(e)}")
-                traceback.print_exc()
-                raise
+                print(f"DEBUG: Gas estimation failed: {str(e)}")
+                # Use default gas limit if estimation fails
+                gas_with_buffer = 2000000
+                print(f"DEBUG: Using default gas limit: {gas_with_buffer}")
             
-            # Add 10% buffer to gas estimate
-            gas_limit = int(gas_estimate * 1.1)
-            print(f"DEBUG: Gas limit with buffer: {gas_limit}")
-            
-            # Get current gas price
-            gas_price = self.w3.eth.gas_price
-            print(f"DEBUG: Current gas price: {gas_price}")
+            # Get current nonce
+            nonce = self.w3.eth.get_transaction_count(self.account_address)
+            print(f"DEBUG: Current nonce: {nonce}")
             
             # Build transaction
             try:
-                nonce = self.w3.eth.get_transaction_count(self.account_address)
-                print(f"DEBUG: Current nonce: {nonce}")
-                
                 txn = self.contract.functions.recordMovement(
                     rfid_tag,
                     location,
@@ -246,8 +214,8 @@ class BlockchainClient:
                 ).build_transaction({
                     'from': self.account_address,
                     'nonce': nonce,
-                    'gas': gas_limit,
-                    'gasPrice': gas_price,
+                    'gas': gas_with_buffer,
+                    'gasPrice': self.w3.eth.gas_price,
                     'chainId': self.w3.eth.chain_id
                 })
                 print("DEBUG: Transaction built successfully")  # Simple string, no f-string needed

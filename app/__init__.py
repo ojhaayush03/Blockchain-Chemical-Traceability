@@ -1,6 +1,6 @@
 from flask import Flask
-from app.extensions import db
-from app.routes import dashboard_bp, main  # <-- Import both blueprints from the `routes` package
+from app.extensions import db, login_manager, csrf
+from app.routes import dashboard_bp, main, auth_bp, admin_bp, distributor_bp, customer_bp  # <-- Import all blueprints from the `routes` package
 import os
 import json
 import traceback
@@ -13,6 +13,9 @@ def create_app():
     app = Flask(__name__)
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///chemicals.db'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    
+    # Set a secret key for session management
+    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
     
     # Initialize logger
     import logging
@@ -131,10 +134,24 @@ def create_app():
         print(f"Blockchain environment variables not set: {', '.join(missing)}. Blockchain features disabled.")
         app.logger.warning("Blockchain environment variables not set. Blockchain features disabled.")
 
+    # Initialize Flask extensions
     db.init_app(app)
+    login_manager.init_app(app)
+    csrf.init_app(app)
+    
+    # Setup Flask-Login
+    from app.models import User
+    
+    @login_manager.user_loader
+    def load_user(user_id):
+        return User.query.get(int(user_id))
 
     # Register Blueprints
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(main)
+    app.register_blueprint(auth_bp, url_prefix='/auth')
+    app.register_blueprint(admin_bp)  # Admin routes are already prefixed with '/admin' in the blueprint
+    app.register_blueprint(distributor_bp)  # Distributor routes are prefixed with '/distributor' in the blueprint
+    app.register_blueprint(customer_bp)  # Customer routes are prefixed with '/customer' in the blueprint
 
     return app

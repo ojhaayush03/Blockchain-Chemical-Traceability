@@ -23,7 +23,11 @@
             </div>
             <div class="detail-item">
                 <span class="label">Manufacturer:</span>
-                <span class="value">{{ chemical.manufacturer if chemical.manufacturer else 'Not specified' }}</span>
+                <span class="value">{{ chemical.manufacturer_org.name if chemical.manufacturer_org else 'Not specified' }}</span>
+            </div>
+            <div class="detail-item">
+                <span class="label">Registered By:</span>
+                <span class="value">{{ chemical.registered_by.username if chemical.registered_by else 'Unknown' }}</span>
             </div>
             <div class="detail-item">
                 <span class="label">Quantity:</span>
@@ -86,10 +90,11 @@
                 <th>Moved By</th>
                 <th>Purpose</th>
                 <th>Remarks</th>
+                <th>Validation</th>
                 <th>Blockchain Status</th>
             </tr>
             {% for log in logs %}
-            <tr>
+            <tr class="{{ 'suspicious-movement' if log.validation_status == 'suspicious' else '' }}">
                 <td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
                 <td>{{ log.location }}</td>
                 <td>{{ log.status if log.status else '' }}</td>
@@ -97,13 +102,25 @@
                 <td>{{ log.purpose if log.purpose else '' }}</td>
                 <td>{{ log.remarks if log.remarks else '' }}</td>
                 <td>
-                    <div class="blockchain-status" id="verification-{{ loop.index }}">
-                        <span class="status-text">Checking...</span>
-                        <div class="status-details" style="display: none;">
-                            <p class="tx-hash"></p>
-                            <p class="block-number"></p>
-                            <p class="timestamp"></p>
-                        </div>
+                    <span class="validation-status {{ log.validation_status }}">
+                        {{ log.validation_status | title }}
+                    </span>
+                </td>
+                <td>
+                    <div class="blockchain-status" id="verification-{{ loop.index }}" data-validation-status="{{ log.validation_status }}">
+                        {% if log.validation_status == 'suspicious' %}
+                            <span class="status-text not-verified">Not Recorded</span>
+                            <div class="status-details">
+                                <p>Movement flagged as suspicious - not recorded on blockchain</p>
+                            </div>
+                        {% else %}
+                            <span class="status-text">Checking...</span>
+                            <div class="status-details" style="display: none;">
+                                <p class="tx-hash"></p>
+                                <p class="block-number"></p>
+                                <p class="timestamp"></p>
+                            </div>
+                        {% endif %}
                     </div>
                 </td>
             </tr>
@@ -168,10 +185,22 @@ document.getElementById('movementForm').addEventListener('submit', function(e) {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token() }}'
         },
+        credentials: 'same-origin',  // This ensures cookies (including session) are sent
         body: JSON.stringify(jsonData)
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            if (response.status === 401) {
+                throw new Error('You must be logged in to log a movement');
+            }
+            return response.text().then(text => {
+                throw new Error(`Error ${response.status}: ${text}`);
+            });
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.blockchain && data.blockchain.success) {
             alert('Movement logged successfully and recorded on blockchain!');
@@ -181,7 +210,8 @@ document.getElementById('movementForm').addEventListener('submit', function(e) {
         location.reload();
     })
     .catch(error => {
-        alert('Error logging movement: ' + error);
+        console.error('Error logging movement:', error);
+        alert('Error logging movement: ' + error.message);
     });
 });
 
@@ -192,19 +222,27 @@ function updateVerificationStatus(logIndex, verified, details = {}) {
         const statusText = statusElement.querySelector('.status-text');
         const statusDetails = statusElement.querySelector('.status-details');
         
+        if (!statusText || !statusDetails) {
+            console.log(`Missing elements for verification-${logIndex}`);
+            return;
+        }
+        
         if (verified) {
             statusText.textContent = 'Verified';
             statusText.className = 'status-text verified';
             
             // Update details
             if (details.tx_hash) {
-                statusDetails.querySelector('.tx-hash').textContent = `Transaction: ${details.tx_hash.substring(0, 10)}...`;
+                const txElement = statusDetails.querySelector('.tx-hash');
+                if (txElement) txElement.textContent = `Transaction: ${details.tx_hash.substring(0, 10)}...`;
             }
             if (details.block_number) {
-                statusDetails.querySelector('.block-number').textContent = `Block: ${details.block_number}`;
+                const blockElement = statusDetails.querySelector('.block-number');
+                if (blockElement) blockElement.textContent = `Block: ${details.block_number}`;
             }
             if (details.timestamp) {
-                statusDetails.querySelector('.timestamp').textContent = `Time: ${new Date(details.timestamp * 1000).toLocaleString()}`;
+                const timeElement = statusDetails.querySelector('.timestamp');
+                if (timeElement) timeElement.textContent = `Time: ${new Date(details.timestamp * 1000).toLocaleString()}`;
             }
             statusDetails.style.display = 'block';
         } else {
@@ -216,9 +254,35 @@ function updateVerificationStatus(logIndex, verified, details = {}) {
 }
 
 // Check blockchain status first
-// Add styles for blockchain status
+// Add styles for blockchain status and validation
 const style = document.createElement('style');
 style.textContent = `
+    .suspicious-movement {
+        background-color: #fff0f0;
+    }
+    
+    .validation-status {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-weight: bold;
+        display: inline-block;
+    }
+    
+    .validation-status.verified {
+        background-color: #e8f5e9;
+        color: #2e7d32;
+    }
+    
+    .validation-status.suspicious {
+        background-color: #ffebee;
+        color: #c62828;
+    }
+    
+    .validation-status.pending {
+        background-color: #fff8e1;
+        color: #f57f17;
+    }
+
     .blockchain-status {
         position: relative;
         cursor: pointer;

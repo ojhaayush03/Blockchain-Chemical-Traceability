@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+
+{% block title %}User Management{% endblock %}
+
+{% block content %}
+<div class="admin-content">
+  <div class="header-with-actions">
+    <h2>Users</h2>
+    <div class="action-buttons">
+      <a href="{{ url_for('admin_bp.admin_dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+    </div>
+  </div>
+  
+  <div class="filter-section">
+    <div class="filter-group">
+      <label>Filter by Organization:</label>
+      <select id="orgFilter" onchange="filterUsers()">
+        <option value="all">All Organizations</option>
+        {% for org in organizations %}
+        <option value="{{ org.id }}">{{ org.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    
+    <div class="filter-group">
+      <label>Filter by Role:</label>
+      <select id="roleFilter" onchange="filterUsers()">
+        <option value="all">All Roles</option>
+        <option value="ADMIN">Admin</option>
+        <option value="MANUFACTURER">Manufacturer</option>
+        <option value="DISTRIBUTOR">Distributor</option>
+        <option value="CUSTOMER">Customer</option>
+      </select>
+    </div>
+    
+    <div class="filter-group">
+      <label>Filter by Status:</label>
+      <select id="statusFilter" onchange="filterUsers()">
+        <option value="all">All Statuses</option>
+        <option value="active">Active</option>
+        <option value="inactive">Inactive</option>
+      </select>
+    </div>
+    
+    <button class="btn btn-outline-secondary" onclick="resetFilters()">Reset Filters</button>
+  </div>
+  
+  <div class="users-list">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Username</th>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Organization</th>
+          <th>Role</th>
+          <th>Status</th>
+          <th>Blockchain ID</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="userTableBody">
+        {% for user in users %}
+        <tr data-org="{{ user.organization_id }}" data-role="{{ user.role.name }}" data-status="{{ 'active' if user.is_active else 'inactive' }}">
+          <td>{{ user.id }}</td>
+          <td>{{ user.username }}</td>
+          <td>{{ user.first_name }} {{ user.last_name }}</td>
+          <td>{{ user.email }}</td>
+          <td>{{ user.organization.name }}</td>
+          <td><span class="role-badge {{ user.role.name.lower() }}">{{ user.role.name }}</span></td>
+          <td>{{ "Active" if user.is_active else "Inactive" }}</td>
+          <td>{{ user.blockchain_id if user.blockchain_id else 'Not registered' }}</td>
+          <td>
+            <div class="action-buttons">
+              {% if user.is_active %}
+              <form action="{{ url_for('admin_bp.deactivate_user', user_id=user.id) }}" method="POST" style="display:inline;">
+                <button type="submit" class="btn btn-sm btn-warning">Deactivate</button>
+              </form>
+              {% else %}
+              <form action="{{ url_for('admin_bp.activate_user', user_id=user.id) }}" method="POST" style="display:inline;">
+                <button type="submit" class="btn btn-sm btn-success">Activate</button>
+              </form>
+              {% endif %}
+              <a href="{{ url_for('auth.view_profile', username=user.username) }}" class="btn btn-sm btn-info">View Profile</a>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<style>
+  .admin-content {
+    padding: 20px;
+  }
+  
+  .header-with-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  
+  .filter-section {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  
+  .filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  
+  .filter-group label {
+    font-weight: bold;
+    font-size: 0.9rem;
+  }
+  
+  .filter-group select {
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+  }
+  
+  .table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+  }
+  
+  .table th, .table td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+  }
+  
+  .table th {
+    background-color: #f8f9fa;
+  }
+  
+  .action-buttons {
+    display: flex;
+    gap: 5px;
+  }
+  
+  .role-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    text-transform: lowercase;
+    font-size: 0.8rem;
+    font-weight: bold;
+  }
+  
+  .role-badge.admin {
+    background-color: #dc3545;
+    color: white;
+  }
+  
+  .role-badge.manufacturer {
+    background-color: #007bff;
+    color: white;
+  }
+  
+  .role-badge.distributor {
+    background-color: #fd7e14;
+    color: white;
+  }
+  
+  .role-badge.customer {
+    background-color: #28a745;
+    color: white;
+  }
+</style>
+
+<script>
+  function filterUsers() {
+    const orgFilter = document.getElementById('orgFilter').value;
+    const roleFilter = document.getElementById('roleFilter').value;
+    const statusFilter = document.getElementById('statusFilter').value;
+    
+    const rows = document.querySelectorAll('#userTableBody tr');
+    
+    rows.forEach(row => {
+      const orgMatch = orgFilter === 'all' || row.getAttribute('data-org') === orgFilter;
+      const roleMatch = roleFilter === 'all' || row.getAttribute('data-role') === roleFilter;
+      const statusMatch = statusFilter === 'all' || row.getAttribute('data-status') === statusFilter;
+      
+      if (orgMatch && roleMatch && statusMatch) {
+        row.style.display = '';
+      } else {
+        row.style.display = 'none';
+      }
+    });
+  }
+  
+  function resetFilters() {
+    document.getElementById('orgFilter').value = 'all';
+    document.getElementById('roleFilter').value = 'all';
+    document.getElementById('statusFilter').value = 'all';
+    filterUsers();
+  }
+</script>
+{% endblock %}

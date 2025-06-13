@@ -1,0 +1,599 @@
+{% extends "base.html" %}
+
+{% block title %}Log Chemical Movement{% endblock %}
+
+{% block content %}
+<div class="content-container">
+  <div class="header-with-actions">
+    <h2>Log Chemical Movement</h2>
+    <div class="action-buttons">
+      <a href="{{ url_for('dashboard_bp.dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+    </div>
+  </div>
+  
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+      {% for category, message in messages %}
+      <div class="alert {{ category }}">{{ message }}</div>
+      {% endfor %}
+  {% endif %}
+  {% endwith %}
+  
+  <div class="form-container">
+    <form method="POST" action="{{ url_for('distributor_bp.log_movement') }}">
+      {{ form.csrf_token }}
+      
+      <div class="form-section">
+        <h3>Chemical Identification</h3>
+        
+        <div class="form-group">
+          {{ form.rfid_tag.label }} {{ form.rfid_tag(class="form-control") }}
+          <div class="rfid-scanner-container">
+            <button type="button" id="scanRfidBtn" class="btn btn-info btn-sm">
+              <i class="fas fa-rss"></i> Scan RFID
+            </button>
+            <div id="scanStatus" class="scan-status"></div>
+          </div>
+          {% if form.rfid_tag.errors %}
+            <div class="error">
+              {% for error in form.rfid_tag.errors %}
+              <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="form-group">
+          {{ form.chemical_id.label }} {{ form.chemical_id(class="form-control") }}
+          <small class="form-text text-muted">Chemical ID will be auto-populated when RFID is scanned</small>
+          {% if form.chemical_id.errors %}
+            <div class="error">
+              {% for error in form.chemical_id.errors %}
+              <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div id="chemicalInfo" class="chemical-info" style="display: none;">
+          <div class="info-row">
+            <div class="info-label">Name:</div>
+            <div id="chemicalName" class="info-value"></div>
+          </div>
+          <div class="info-row">
+            <div class="info-label">Formula:</div>
+            <div id="chemicalFormula" class="info-value"></div>
+          </div>
+          <div class="info-row">
+            <div class="info-label">Batch:</div>
+            <div id="chemicalBatch" class="info-value"></div>
+          </div>
+          <div class="info-row">
+            <div class="info-label">Current Location:</div>
+            <div id="currentLocation" class="info-value"></div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="form-section">
+        <h3>Movement Details</h3>
+        
+        <div class="form-group">
+          {{ form.movement_type.label }} {{ form.movement_type(class="form-control") }}
+          {% if form.movement_type.errors %}
+            <div class="error">
+              {% for error in form.movement_type.errors %}
+              <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="form-row">
+          <div class="form-group half">
+            {{ form.source_location.label }} {{ form.source_location(class="form-control") }}
+            <small class="form-text text-muted">Will be auto-populated with current location</small>
+            {% if form.source_location.errors %}
+              <div class="error">
+                {% for error in form.source_location.errors %}
+                <span>{{ error }}</span>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+          
+          <div class="form-group half">
+            {{ form.destination_location.label }} {{ form.destination_location(class="form-control") }}
+            {% if form.destination_location.errors %}
+              <div class="error">
+                {% for error in form.destination_location.errors %}
+                <span>{{ error }}</span>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+        
+        <div class="form-row">
+          <div class="form-group half">
+            {{ form.quantity.label }} {{ form.quantity(class="form-control", type="number", step="0.01") }}
+            {% if form.quantity.errors %}
+              <div class="error">
+                {% for error in form.quantity.errors %}
+                <span>{{ error }}</span>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+          
+          <div class="form-group half">
+            {{ form.unit.label }} {{ form.unit(class="form-control") }}
+            <small class="form-text text-muted">Will be auto-populated from chemical data</small>
+            {% if form.unit.errors %}
+              <div class="error">
+                {% for error in form.unit.errors %}
+                <span>{{ error }}</span>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      
+      <div class="form-section">
+        <h3>Recipient Information</h3>
+        
+        <div class="form-group">
+          {{ form.recipient_organization.label }} {{ form.recipient_organization(class="form-control") }}
+          {% if form.recipient_organization.errors %}
+            <div class="error">
+              {% for error in form.recipient_organization.errors %}
+              <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="form-group">
+          {{ form.recipient_email.label }} {{ form.recipient_email(class="form-control") }}
+          <small class="form-text text-muted">Email must belong to a registered organization</small>
+          {% if form.recipient_email.errors %}
+            <div class="error">
+              {% for error in form.recipient_email.errors %}
+              <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="form-group">
+          {{ form.transport_method.label }} {{ form.transport_method(class="form-control") }}
+          {% if form.transport_method.errors %}
+            <div class="error">
+              {% for error in form.transport_method.errors %}
+              <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="form-group">
+          {{ form.estimated_arrival.label }} {{ form.estimated_arrival(class="form-control", type="datetime-local") }}
+          {% if form.estimated_arrival.errors %}
+            <div class="error">
+              {% for error in form.estimated_arrival.errors %}
+              <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+      
+      <div class="form-section">
+        <h3>Additional Information</h3>
+        
+        <div class="form-group">
+          {{ form.notes.label }} {{ form.notes(class="form-control", rows=3) }}
+          {% if form.notes.errors %}
+            <div class="error">
+              {% for error in form.notes.errors %}
+              <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="form-group checkbox-group">
+          {{ form.temperature_controlled(class="form-check-input") }}
+          {{ form.temperature_controlled.label(class="form-check-label") }}
+          {% if form.temperature_controlled.errors %}
+            <div class="error">
+              {% for error in form.temperature_controlled.errors %}
+              <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div id="tempControlFields" class="nested-fields" style="display: none;">
+          <div class="form-row">
+            <div class="form-group half">
+              {{ form.min_temperature.label }} {{ form.min_temperature(class="form-control", type="number", step="0.1") }}
+              {% if form.min_temperature.errors %}
+                <div class="error">
+                  {% for error in form.min_temperature.errors %}
+                  <span>{{ error }}</span>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </div>
+            
+            <div class="form-group half">
+              {{ form.max_temperature.label }} {{ form.max_temperature(class="form-control", type="number", step="0.1") }}
+              {% if form.max_temperature.errors %}
+                <div class="error">
+                  {% for error in form.max_temperature.errors %}
+                  <span>{{ error }}</span>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="form-section">
+        <h3>Blockchain Registration</h3>
+        <div class="blockchain-info">
+          <p>
+            <i class="fas fa-info-circle"></i>
+            This movement will be securely recorded on the blockchain for immutable traceability.
+          </p>
+        </div>
+        
+        <div class="form-group checkbox-group">
+          {{ form.confirm_accuracy(class="form-check-input") }}
+          {{ form.confirm_accuracy.label(class="form-check-label") }}
+          {% if form.confirm_accuracy.errors %}
+            <div class="error">
+              {% for error in form.confirm_accuracy.errors %}
+              <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+      
+      <div class="form-actions">
+        {{ form.submit(class="btn btn-primary") }}
+        <a href="{{ url_for('dashboard_bp.dashboard') }}" class="btn btn-outline">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+  .content-container {
+    max-width: 900px;
+    margin: 30px auto;
+    padding: 0 20px;
+  }
+  
+  .header-with-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  
+  .form-container {
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    overflow: hidden;
+  }
+  
+  .form-section {
+    padding: 25px;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .form-section h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #2c3e50;
+  }
+  
+  .form-group {
+    margin-bottom: 20px;
+  }
+  
+  .form-group:last-child {
+    margin-bottom: 0;
+  }
+  
+  .form-row {
+    display: flex;
+    gap: 20px;
+  }
+  
+  .form-group.half {
+    flex: 1;
+  }
+  
+  .form-control {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 16px;
+  }
+  
+  textarea.form-control {
+    resize: vertical;
+    min-height: 80px;
+  }
+  
+  .form-text {
+    color: #6c757d;
+    font-size: 0.85rem;
+    margin-top: 5px;
+  }
+  
+  .checkbox-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  
+  .form-check-input {
+    width: 18px;
+    height: 18px;
+  }
+  
+  .form-check-label {
+    font-weight: bold;
+  }
+  
+  .blockchain-info {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+    border-left: 4px solid #17a2b8;
+  }
+  
+  .blockchain-info p {
+    margin: 0;
+    color: #2c3e50;
+  }
+  
+  .form-actions {
+    padding: 25px;
+    display: flex;
+    gap: 10px;
+  }
+  
+  .btn {
+    display: inline-block;
+    padding: 10px 20px;
+    border-radius: 4px;
+    text-decoration: none;
+    font-weight: bold;
+    cursor: pointer;
+    border: none;
+  }
+  
+  .btn-sm {
+    padding: 5px 10px;
+    font-size: 0.875rem;
+  }
+  
+  .btn-primary {
+    background-color: #007bff;
+    color: white;
+  }
+  
+  .btn-secondary {
+    background-color: #6c757d;
+    color: white;
+  }
+  
+  .btn-info {
+    background-color: #17a2b8;
+    color: white;
+  }
+  
+  .btn-outline {
+    background-color: transparent;
+    color: #6c757d;
+    border: 1px solid #6c757d;
+  }
+  
+  .error {
+    color: #dc3545;
+    font-size: 0.9rem;
+    margin-top: 5px;
+  }
+  
+  .alert {
+    padding: 12px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+  }
+  
+  .alert.error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+  }
+  
+  .alert.success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+  }
+  
+  .rfid-scanner-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  
+  .scan-status {
+    font-size: 0.9rem;
+  }
+  
+  .scan-status.scanning {
+    color: #17a2b8;
+  }
+  
+  .scan-status.success {
+    color: #28a745;
+  }
+  
+  .scan-status.error {
+    color: #dc3545;
+  }
+  
+  .chemical-info {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 4px;
+    margin-top: 15px;
+  }
+  
+  .info-row {
+    display: flex;
+    margin-bottom: 8px;
+  }
+  
+  .info-row:last-child {
+    margin-bottom: 0;
+  }
+  
+  .info-label {
+    width: 120px;
+    font-weight: bold;
+    color: #6c757d;
+  }
+  
+  .info-value {
+    flex: 1;
+  }
+  
+  .nested-fields {
+    margin-top: 15px;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    border-left: 4px solid #6c757d;
+  }
+  
+  @media (max-width: 768px) {
+    .form-row {
+      flex-direction: column;
+      gap: 0;
+    }
+    
+    .form-group.half {
+      width: 100%;
+    }
+  }
+</style>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Toggle temperature control fields
+    const tempControlCheckbox = document.getElementById('{{ form.temperature_controlled.id }}');
+    const tempControlFields = document.getElementById('tempControlFields');
+    
+    tempControlCheckbox.addEventListener('change', function() {
+      if (this.checked) {
+        tempControlFields.style.display = 'block';
+      } else {
+        tempControlFields.style.display = 'none';
+      }
+    });
+    
+    // RFID scanning simulation
+    const scanRfidBtn = document.getElementById('scanRfidBtn');
+    const scanStatus = document.getElementById('scanStatus');
+    const rfidInput = document.getElementById('{{ form.rfid_tag.id }}');
+    const chemicalIdInput = document.getElementById('{{ form.chemical_id.id }}');
+    const sourceLocationInput = document.getElementById('{{ form.source_location.id }}');
+    const unitInput = document.getElementById('{{ form.unit.id }}');
+    const chemicalInfo = document.getElementById('chemicalInfo');
+    const chemicalName = document.getElementById('chemicalName');
+    const chemicalFormula = document.getElementById('chemicalFormula');
+    const chemicalBatch = document.getElementById('chemicalBatch');
+    const currentLocation = document.getElementById('currentLocation');
+    
+    scanRfidBtn.addEventListener('click', function() {
+      // Simulate RFID scanning
+      scanStatus.textContent = 'Scanning...';
+      scanStatus.className = 'scan-status scanning';
+      
+      // Simulate API call to get chemical info by RFID
+      setTimeout(function() {
+        // In a real application, this would be an API call
+        fetch(`/api/chemical/rfid/${rfidInput.value}`)
+          .then(response => {
+            if (!response.ok) {
+              throw new Error('RFID tag not found');
+            }
+            return response.json();
+          })
+          .then(data => {
+            // Populate form with chemical data
+            chemicalIdInput.value = data.id;
+            sourceLocationInput.value = data.current_location;
+            unitInput.value = data.unit;
+            
+            // Show chemical info
+            chemicalName.textContent = data.name;
+            chemicalFormula.textContent = data.chemical_formula;
+            chemicalBatch.textContent = data.batch_number;
+            currentLocation.textContent = data.current_location;
+            chemicalInfo.style.display = 'block';
+            
+            scanStatus.textContent = 'RFID scanned successfully';
+            scanStatus.className = 'scan-status success';
+          })
+          .catch(error => {
+            scanStatus.textContent = error.message;
+            scanStatus.className = 'scan-status error';
+          });
+      }, 1500);
+    });
+    
+    // For demo purposes, simulate a scan when RFID input changes
+    rfidInput.addEventListener('input', function() {
+      if (this.value.length > 0) {
+        // Simulate data for demo purposes
+        setTimeout(() => {
+          const demoData = {
+            id: '12345',
+            name: 'Acetone',
+            chemical_formula: 'C₃H₆O',
+            batch_number: 'ACT-2023-001',
+            current_location: 'Warehouse A, Shelf 3',
+            unit: 'liters'
+          };
+          
+          chemicalIdInput.value = demoData.id;
+          sourceLocationInput.value = demoData.current_location;
+          unitInput.value = demoData.unit;
+          
+          chemicalName.textContent = demoData.name;
+          chemicalFormula.textContent = demoData.chemical_formula;
+          chemicalBatch.textContent = demoData.batch_number;
+          currentLocation.textContent = demoData.current_location;
+          chemicalInfo.style.display = 'block';
+        }, 500);
+      }
+    });
+  });
+</script>
+{% endblock %}

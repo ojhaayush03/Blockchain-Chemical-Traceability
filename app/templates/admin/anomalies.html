@@ -1,0 +1,500 @@
+{% extends "base.html" %}
+
+{% block title %}Blockchain Anomalies{% endblock %}
+
+{% block content %}
+<div class="admin-content">
+  <div class="header-with-actions">
+    <h2>Blockchain Anomalies</h2>
+    <div class="action-buttons">
+      <a href="{{ url_for('admin_bp.admin_dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+    </div>
+  </div>
+  
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+      {% for category, message in messages %}
+      <div class="alert {{ category }}">{{ message }}</div>
+      {% endfor %}
+  {% endif %}
+  {% endwith %}
+  
+  <div class="filter-section">
+    <div class="filter-group">
+      <label>Filter by Status:</label>
+      <select id="statusFilter" onchange="filterAnomalies()">
+        <option value="all">All Statuses</option>
+        <option value="pending">Pending</option>
+        <option value="resolved">Resolved</option>
+        <option value="false_positive">False Positive</option>
+        <option value="escalated">Escalated</option>
+      </select>
+    </div>
+    
+    <div class="filter-group">
+      <label>Filter by Severity:</label>
+      <select id="severityFilter" onchange="filterAnomalies()">
+        <option value="all">All Severities</option>
+        <option value="low">Low</option>
+        <option value="medium">Medium</option>
+        <option value="high">High</option>
+        <option value="critical">Critical</option>
+      </select>
+    </div>
+    
+    <button class="btn btn-outline-secondary" onclick="resetFilters()">Reset Filters</button>
+  </div>
+  
+  <div class="anomalies-container">
+    {% if anomalies %}
+    <div class="anomalies-list">
+      {% for anomaly in anomalies %}
+      <div class="anomaly-card" 
+           data-status="{{ anomaly.resolution_status or 'pending' }}" 
+           data-severity="{{ anomaly.severity }}">
+        <div class="anomaly-header severity-{{ anomaly.severity }}">
+          <div class="anomaly-id">#{{ anomaly.id }}</div>
+          <div class="anomaly-timestamp">{{ anomaly.detected_at.strftime('%Y-%m-%d %H:%M:%S') }}</div>
+          <div class="anomaly-severity">{{ anomaly.severity|title }}</div>
+          <div class="anomaly-status">
+            <span class="status-badge {{ anomaly.resolution_status or 'pending' }}">
+              {{ (anomaly.resolution_status or 'pending')|replace('_', ' ')|title }}
+            </span>
+          </div>
+        </div>
+        
+        <div class="anomaly-body">
+          <h4>{{ anomaly.anomaly_type|replace('_', ' ')|title }}</h4>
+          
+          <div class="anomaly-details">
+            <div class="detail-row">
+              <div class="detail-label">Description:</div>
+              <div class="detail-value">{{ anomaly.description }}</div>
+            </div>
+            
+            <div class="detail-row">
+              <div class="detail-label">Affected Items:</div>
+              <div class="detail-value">
+                {% if anomaly.chemical_id %}
+                <div class="affected-item">
+                  <span class="item-type">Chemical:</span>
+                  <a href="{{ url_for('main_bp.view_chemical', chemical_id=anomaly.chemical_id) }}">
+                    {{ anomaly.chemical.name if anomaly.chemical else 'ID: ' + anomaly.chemical_id|string }}
+                  </a>
+                </div>
+                {% endif %}
+                
+                {% if anomaly.movement_id %}
+                <div class="affected-item">
+                  <span class="item-type">Movement:</span>
+                  <a href="{{ url_for('main_bp.view_movement', movement_id=anomaly.movement_id) }}">
+                    Movement #{{ anomaly.movement_id }}
+                  </a>
+                </div>
+                {% endif %}
+                
+                {% if anomaly.blockchain_hash %}
+                <div class="affected-item">
+                  <span class="item-type">Blockchain Hash:</span>
+                  <span class="hash-value">{{ anomaly.blockchain_hash }}</span>
+                </div>
+                {% endif %}
+              </div>
+            </div>
+            
+            {% if anomaly.resolution_status and anomaly.resolution_status != 'pending' %}
+            <div class="detail-row">
+              <div class="detail-label">Resolution:</div>
+              <div class="detail-value">
+                <div class="resolution-info">
+                  <div>{{ anomaly.resolution_notes }}</div>
+                  <div class="resolution-meta">
+                    Resolved by: 
+                    {% if anomaly.resolved_by %}
+                      <a href="{{ url_for('auth_bp.view_profile', user_id=anomaly.resolved_by_id) }}">
+                        {{ anomaly.resolved_by.username }}
+                      </a>
+                    {% else %}
+                      System
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+            </div>
+            {% endif %}
+          </div>
+          
+          {% if not anomaly.resolution_status or anomaly.resolution_status == 'pending' %}
+          <div class="anomaly-actions">
+            <button class="btn btn-primary" onclick="showResolutionForm('{{ anomaly.id }}')">Resolve</button>
+          </div>
+          
+          <div id="resolution-form-{{ anomaly.id }}" class="resolution-form" style="display: none;">
+            <form action="{{ url_for('admin_bp.resolve_anomaly', anomaly_id=anomaly.id) }}" method="POST">
+              <div class="form-group">
+                <label for="resolution-status-{{ anomaly.id }}">Resolution Status:</label>
+                <select id="resolution-status-{{ anomaly.id }}" name="resolution_status" class="form-control">
+                  <option value="resolved">Resolved</option>
+                  <option value="false_positive">False Positive</option>
+                  <option value="escalated">Escalated</option>
+                </select>
+              </div>
+              
+              <div class="form-group">
+                <label for="resolution-notes-{{ anomaly.id }}">Resolution Notes:</label>
+                <textarea id="resolution-notes-{{ anomaly.id }}" name="resolution_notes" class="form-control" rows="3" required></textarea>
+              </div>
+              
+              <div class="form-actions">
+                <button type="submit" class="btn btn-success">Submit</button>
+                <button type="button" class="btn btn-outline" onclick="hideResolutionForm('{{ anomaly.id }}')">Cancel</button>
+              </div>
+            </form>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-icon">✓</div>
+      <h3>No Anomalies Found</h3>
+      <p>The blockchain data is currently consistent with no detected anomalies.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<style>
+  .admin-content {
+    padding: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  
+  .header-with-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  
+  .filter-section {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  
+  .filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  
+  .filter-group label {
+    font-weight: bold;
+    font-size: 0.9rem;
+  }
+  
+  .filter-group select {
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    min-width: 200px;
+  }
+  
+  .anomalies-container {
+    margin-top: 20px;
+  }
+  
+  .anomalies-list {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  
+  .anomaly-card {
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    overflow: hidden;
+  }
+  
+  .anomaly-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    color: white;
+  }
+  
+  .anomaly-header.severity-low {
+    background-color: #17a2b8;
+  }
+  
+  .anomaly-header.severity-medium {
+    background-color: #fd7e14;
+  }
+  
+  .anomaly-header.severity-high {
+    background-color: #dc3545;
+  }
+  
+  .anomaly-header.severity-critical {
+    background-color: #721c24;
+  }
+  
+  .anomaly-id {
+    font-weight: bold;
+  }
+  
+  .anomaly-severity {
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 0.8rem;
+  }
+  
+  .status-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: bold;
+  }
+  
+  .status-badge.pending {
+    background-color: #ffc107;
+    color: #212529;
+  }
+  
+  .status-badge.resolved {
+    background-color: #28a745;
+    color: white;
+  }
+  
+  .status-badge.false_positive {
+    background-color: #6c757d;
+    color: white;
+  }
+  
+  .status-badge.escalated {
+    background-color: #dc3545;
+    color: white;
+  }
+  
+  .anomaly-body {
+    padding: 20px;
+  }
+  
+  .anomaly-body h4 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #2c3e50;
+  }
+  
+  .anomaly-details {
+    margin-bottom: 20px;
+  }
+  
+  .detail-row {
+    margin-bottom: 15px;
+  }
+  
+  .detail-row:last-child {
+    margin-bottom: 0;
+  }
+  
+  .detail-label {
+    font-weight: bold;
+    color: #6c757d;
+    margin-bottom: 5px;
+  }
+  
+  .affected-item {
+    margin-bottom: 5px;
+  }
+  
+  .item-type {
+    font-weight: bold;
+    margin-right: 5px;
+  }
+  
+  .hash-value {
+    font-family: monospace;
+    background-color: #f8f9fa;
+    padding: 2px 5px;
+    border-radius: 3px;
+    font-size: 0.9rem;
+    word-break: break-all;
+  }
+  
+  .resolution-info {
+    background-color: #f8f9fa;
+    padding: 10px;
+    border-radius: 4px;
+    border-left: 4px solid #28a745;
+  }
+  
+  .resolution-meta {
+    margin-top: 10px;
+    font-size: 0.9rem;
+    color: #6c757d;
+  }
+  
+  .anomaly-actions {
+    margin-top: 20px;
+  }
+  
+  .resolution-form {
+    margin-top: 20px;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+  }
+  
+  .form-group {
+    margin-bottom: 15px;
+  }
+  
+  .form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+  }
+  
+  .form-control {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 16px;
+  }
+  
+  textarea.form-control {
+    resize: vertical;
+  }
+  
+  .form-actions {
+    display: flex;
+    gap: 10px;
+  }
+  
+  .empty-state {
+    padding: 50px;
+    text-align: center;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  }
+  
+  .empty-icon {
+    font-size: 48px;
+    color: #28a745;
+    margin-bottom: 20px;
+  }
+  
+  .empty-state h3 {
+    margin-bottom: 10px;
+    color: #2c3e50;
+  }
+  
+  .empty-state p {
+    color: #6c757d;
+  }
+  
+  .btn {
+    display: inline-block;
+    padding: 8px 15px;
+    border-radius: 4px;
+    text-decoration: none;
+    font-weight: bold;
+    cursor: pointer;
+    border: none;
+  }
+  
+  .btn-primary {
+    background-color: #007bff;
+    color: white;
+  }
+  
+  .btn-success {
+    background-color: #28a745;
+    color: white;
+  }
+  
+  .btn-secondary {
+    background-color: #6c757d;
+    color: white;
+  }
+  
+  .btn-outline {
+    background-color: transparent;
+    color: #6c757d;
+    border: 1px solid #6c757d;
+  }
+  
+  .btn-outline-secondary {
+    background-color: transparent;
+    color: #6c757d;
+    border: 1px solid #6c757d;
+  }
+  
+  .alert {
+    padding: 12px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+  }
+  
+  .alert.error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+  }
+  
+  .alert.success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+  }
+</style>
+
+<script>
+  function showResolutionForm(anomalyId) {
+    document.getElementById(`resolution-form-${anomalyId}`).style.display = 'block';
+  }
+  
+  function hideResolutionForm(anomalyId) {
+    document.getElementById(`resolution-form-${anomalyId}`).style.display = 'none';
+  }
+  
+  function filterAnomalies() {
+    const statusFilter = document.getElementById('statusFilter').value;
+    const severityFilter = document.getElementById('severityFilter').value;
+    
+    const cards = document.querySelectorAll('.anomaly-card');
+    
+    cards.forEach(card => {
+      const statusMatch = statusFilter === 'all' || card.getAttribute('data-status') === statusFilter;
+      const severityMatch = severityFilter === 'all' || card.getAttribute('data-severity') === severityFilter;
+      
+      if (statusMatch && severityMatch) {
+        card.style.display = '';
+      } else {
+        card.style.display = 'none';
+      }
+    });
+  }
+  
+  function resetFilters() {
+    document.getElementById('statusFilter').value = 'all';
+    document.getElementById('severityFilter').value = 'all';
+    filterAnomalies();
+  }
+</script>
+{% endblock %}

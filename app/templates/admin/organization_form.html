@@ -1,0 +1,337 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if organization %}Edit Organization{% else %}Add Organization{% endif %}{% endblock %}
+
+{% block content %}
+<div class="admin-content">
+    <div class="header-with-actions">
+        <h2>{% if organization %}Edit Organization{% else %}Add Organization{% endif %}</h2>
+        <div class="action-buttons">
+            <a href="{{ url_for('admin_bp.organization_list') }}" class="btn btn-secondary">Back to Organizations</a>
+        </div>
+    </div>
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert {{ category }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+    {% endwith %}
+    
+    <div class="form-container">
+        <form method="POST" action="{{ url_for('admin_bp.add_organization') if not organization else url_for('admin_bp.edit_organization', org_id=organization.id) }}">
+            {{ form.csrf_token }}
+            
+            <div class="form-section">
+                <h3>Organization Details</h3>
+                <div class="form-group">
+                    {{ form.name.label }} {{ form.name(class="form-control") }}
+                    {% if form.name.errors %}
+                        <div class="error">
+                            {% for error in form.name.errors %}
+                            <span>{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="form-group">
+                    {{ form.email_domain.label }} {{ form.email_domain(class="form-control") }}
+                    <small class="form-text text-muted">Domain only, without @ (e.g. "company.com")</small>
+                    {% if form.email_domain.errors %}
+                        <div class="error">
+                            {% for error in form.email_domain.errors %}
+                            <span>{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="form-group">
+                    {{ form.description.label }} {{ form.description(class="form-control", rows=3) }}
+                    {% if form.description.errors %}
+                        <div class="error">
+                            {% for error in form.description.errors %}
+                            <span>{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <h3>Organization Permissions</h3>
+                <p class="section-info">Select the roles this organization is allowed to have:</p>
+                
+                <div class="permissions-container">
+                    <div class="permission-card">
+                        <div class="permission-header manufacturer">
+                            <h4>Manufacturer</h4>
+                        </div>
+                        <div class="permission-body">
+                            <p>Can register new chemicals in the system</p>
+                            <div class="permission-toggle">
+                                {{ form.can_manufacture(class="toggle-checkbox") }}
+                                <label for="{{ form.can_manufacture.id }}" class="toggle-label"></label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="permission-card">
+                        <div class="permission-header distributor">
+                            <h4>Distributor</h4>
+                        </div>
+                        <div class="permission-body">
+                            <p>Can log movements and transfer chemicals</p>
+                            <div class="permission-toggle">
+                                {{ form.can_distribute(class="toggle-checkbox") }}
+                                <label for="{{ form.can_distribute.id }}" class="toggle-label"></label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="permission-card">
+                        <div class="permission-header customer">
+                            <h4>Customer</h4>
+                        </div>
+                        <div class="permission-body">
+                            <p>Can receive chemicals and verify receipts</p>
+                            <div class="permission-toggle">
+                                {{ form.can_receive(class="toggle-checkbox") }}
+                                <label for="{{ form.can_receive.id }}" class="toggle-label"></label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-info">
+                    <p><strong>Note:</strong> Organizations can have multiple permissions. For example, a company can both manufacture and distribute chemicals.</p>
+                </div>
+            </div>
+            
+            <div class="form-actions">
+                {{ form.submit(class="btn btn-primary") }}
+                <a href="{{ url_for('admin_bp.organization_list') }}" class="btn btn-outline">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+    .admin-content {
+        max-width: 900px;
+        margin: 30px auto;
+        padding: 0 20px;
+    }
+    
+    .header-with-actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+    
+    .form-container {
+        background-color: #fff;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+    
+    .form-section {
+        padding: 25px;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .form-section h3 {
+        margin-top: 0;
+        margin-bottom: 15px;
+        color: #2c3e50;
+    }
+    
+    .section-info {
+        color: #6c757d;
+        margin-bottom: 20px;
+    }
+    
+    .form-group {
+        margin-bottom: 20px;
+    }
+    
+    .form-control {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 16px;
+    }
+    
+    textarea.form-control {
+        resize: vertical;
+        min-height: 100px;
+    }
+    
+    .form-text {
+        color: #6c757d;
+        font-size: 0.85rem;
+        margin-top: 5px;
+    }
+    
+    .permissions-container {
+        display: flex;
+        gap: 20px;
+        flex-wrap: wrap;
+    }
+    
+    .permission-card {
+        flex: 1;
+        min-width: 200px;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    
+    .permission-header {
+        padding: 15px;
+        color: white;
+        text-align: center;
+    }
+    
+    .permission-header h4 {
+        margin: 0;
+    }
+    
+    .permission-header.manufacturer {
+        background-color: #007bff;
+    }
+    
+    .permission-header.distributor {
+        background-color: #fd7e14;
+    }
+    
+    .permission-header.customer {
+        background-color: #28a745;
+    }
+    
+    .permission-body {
+        padding: 15px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 15px;
+    }
+    
+    .permission-body p {
+        text-align: center;
+        margin: 0;
+        min-height: 40px;
+    }
+    
+    .permission-toggle {
+        position: relative;
+    }
+    
+    .toggle-checkbox {
+        height: 0;
+        width: 0;
+        visibility: hidden;
+        position: absolute;
+    }
+    
+    .toggle-label {
+        cursor: pointer;
+        width: 60px;
+        height: 30px;
+        background: #ccc;
+        display: block;
+        border-radius: 100px;
+        position: relative;
+    }
+    
+    .toggle-label:after {
+        content: '';
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 24px;
+        height: 24px;
+        background: #fff;
+        border-radius: 90px;
+        transition: 0.3s;
+    }
+    
+    .toggle-checkbox:checked + .toggle-label {
+        background: #28a745;
+    }
+    
+    .toggle-checkbox:checked + .toggle-label:after {
+        left: calc(100% - 3px);
+        transform: translateX(-100%);
+    }
+    
+    .form-actions {
+        padding: 25px;
+        display: flex;
+        gap: 10px;
+    }
+    
+    .btn {
+        display: inline-block;
+        padding: 10px 20px;
+        border-radius: 4px;
+        text-decoration: none;
+        font-weight: bold;
+        cursor: pointer;
+        border: none;
+    }
+    
+    .btn-primary {
+        background-color: #007bff;
+        color: white;
+    }
+    
+    .btn-secondary {
+        background-color: #6c757d;
+        color: white;
+    }
+    
+    .btn-outline {
+        background-color: transparent;
+        color: #6c757d;
+        border: 1px solid #6c757d;
+    }
+    
+    .error {
+        color: #dc3545;
+        font-size: 0.9rem;
+        margin-top: 5px;
+    }
+    
+    .alert {
+        padding: 12px;
+        border-radius: 4px;
+        margin-bottom: 20px;
+    }
+    
+    .alert.error {
+        background-color: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
+    
+    .alert.success {
+        background-color: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
+    
+    .form-info {
+        margin-top: 20px;
+        padding: 15px;
+        background-color: #f8f9fa;
+        border-radius: 4px;
+        border-left: 4px solid #17a2b8;
+    }
+</style>
+{% endblock %}

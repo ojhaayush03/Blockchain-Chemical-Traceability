@@ -2,16 +2,280 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>{% block title %}Dashboard{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Dashboard{% endblock %} | Chemical Traceability</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        /* Basic responsive styling */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        
+        .navbar {
+            background-color: #0d47a1;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 1.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            padding: 1rem 0;
+        }
+        
+        .nav-links {
+            display: flex;
+            align-items: center;
+        }
+        
+        .nav-links a {
+            color: white;
+            text-decoration: none;
+            padding: 1rem;
+            display: inline-block;
+            transition: background-color 0.3s;
+        }
+        
+        .nav-links a:hover {
+            background-color: #1565c0;
+        }
+        
+        .user-menu {
+            position: relative;
+            display: inline-block;
+            margin-left: 1rem;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 4px;
+        }
+        
+        .user-info:hover {
+            background-color: #1565c0;
+        }
+        
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+            background-color: #64b5f6;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        
+        .username {
+            margin-right: 0.5rem;
+        }
+        
+        .role-badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            margin-left: 0.5rem;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+        
+        .admin { background-color: #d32f2f; color: white; }
+        .manufacturer { background-color: #388e3c; color: white; }
+        .distributor { background-color: #1976d2; color: white; }
+        .customer { background-color: #7b1fa2; color: white; }
+        
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            background-color: white;
+            min-width: 160px;
+            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+            z-index: 1;
+            right: 0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .dropdown-menu a {
+            color: #333;
+            padding: 12px 16px;
+            text-decoration: none;
+            display: block;
+            text-align: left;
+        }
+        
+        .dropdown-menu a:hover { background-color: #f1f1f1; }
+        
+        .show { display: block; }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1.5rem;
+        }
+        
+        main {
+            padding: 1.5rem;
+        }
+        
+        .alert {
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 4px;
+            border-left: 4px solid #333;
+        }
+        
+        .success { background-color: #e8f5e9; border-color: #4caf50; }
+        .info { background-color: #e3f2fd; border-color: #2196f3; }
+        .warning { background-color: #fff8e1; border-color: #ffc107; }
+        .danger { background-color: #ffebee; border-color: #f44336; }
+        
+        .auth-container {
+            max-width: 500px;
+            margin: 2rem auto;
+            background-color: white;
+            border-radius: 8px;
+            padding: 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 1rem;
+            text-align: center;
+        }
+        
+        .btn-primary {
+            background-color: #1976d2;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: #1565c0;
+        }
+        
+        .error {
+            color: #f44336;
+            margin-top: 0.25rem;
+            font-size: 0.875rem;
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
 </head>
 <body>
-    <nav>
-        <h1>Chemical Traceability Dashboard</h1>
-        <a href="{{ url_for('dashboard_bp.dashboard') }}">Home</a>
+    <nav class="navbar">
+        <div class="logo">Chemical Traceability</div>
+        <div class="nav-links">
+            {% if current_user.is_authenticated %}
+                
+                {% if current_user.role.name == 'ADMIN' %}
+                <a href="{{ url_for('admin_bp.admin_dashboard') }}"><strong>Admin Dashboard</strong></a>
+                <a href="{{ url_for('admin_bp.organization_list') }}">Organizations</a>
+                <a href="{{ url_for('admin_bp.user_list') }}">Users</a>
+                <a href="{{ url_for('admin_bp.view_anomalies') }}">Anomalies</a>
+                {% endif %}
+                
+                {% if current_user.role.name == 'MANUFACTURER' %}
+                <a href="#">Register Chemical</a>
+                {% endif %}
+                
+                {% if current_user.role.name == 'DISTRIBUTOR' or current_user.is_admin %}
+                <a href="#">Movement Logs</a>
+                {% endif %}
+                
+                {% if current_user.role.name == 'CUSTOMER' or current_user.is_admin %}
+                <a href="#">Receipts</a>
+                {% endif %}
+                
+                <div class="user-menu">
+                    <div class="user-info" onclick="toggleDropdown()">
+                        <div class="user-avatar">{{ current_user.username[0].upper() }}</div>
+                        <span class="username">{{ current_user.username }}</span>
+                        <span class="role-badge {{ current_user.role.name.lower() }}">{{ current_user.role.name }}</span>
+                    </div>
+                    <div class="dropdown-menu" id="userDropdown">
+                        <a href="{{ url_for('auth.view_profile', username=current_user.username) }}">Profile</a>
+                        <a href="{{ url_for('auth.logout') }}">Logout</a>
+                    </div>
+                </div>
+                
+            {% else %}
+                <a href="{{ url_for('auth.login') }}">Login</a>
+                <a href="{{ url_for('auth.register') }}">Register</a>
+            {% endif %}
+        </div>
     </nav>
-    <main>
-        {% block content %}{% endblock %}
-    </main>
+    
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                <div class="alert {{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <main>
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+    
+    <script>
+        function toggleDropdown() {
+            document.getElementById("userDropdown").classList.toggle("show");
+        }
+        
+        // Close the dropdown if clicked outside
+        window.onclick = function(event) {
+            if (!event.target.matches('.user-info') && !event.target.matches('.user-avatar') && !event.target.matches('.username')) {
+                var dropdowns = document.getElementsByClassName("dropdown-menu");
+                for (var i = 0; i < dropdowns.length; i++) {
+                    var openDropdown = dropdowns[i];
+                    if (openDropdown.classList.contains('show')) {
+                        openDropdown.classList.remove('show');
+                    }
+                }
+            }
+        }
+    </script>
+    
+    {% block scripts %}{% endblock %}
 </body>
 </html>

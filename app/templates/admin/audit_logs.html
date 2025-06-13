@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+
+{% block title %}Audit Logs{% endblock %}
+
+{% block content %}
+<div class="admin-content">
+  <div class="header-with-actions">
+    <h2>Audit Logs</h2>
+    <div class="action-buttons">
+      <a href="{{ url_for('admin_bp.admin_dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+    </div>
+  </div>
+  
+  <div class="filter-section">
+    <div class="filter-group">
+      <label>Filter by Action Type:</label>
+      <select id="actionFilter" onchange="filterLogs()">
+        <option value="all">All Actions</option>
+        <option value="login">Login</option>
+        <option value="logout">Logout</option>
+        <option value="registration">Registration</option>
+        <option value="organization_creation">Organization Creation</option>
+        <option value="organization_update">Organization Update</option>
+        <option value="user_activation">User Activation</option>
+        <option value="user_deactivation">User Deactivation</option>
+        <option value="chemical_registration">Chemical Registration</option>
+        <option value="movement_log">Movement Log</option>
+        <option value="anomaly_resolution">Anomaly Resolution</option>
+      </select>
+    </div>
+    
+    <div class="filter-group">
+      <label>Filter by Object Type:</label>
+      <select id="objectFilter" onchange="filterLogs()">
+        <option value="all">All Objects</option>
+        <option value="User">User</option>
+        <option value="Organization">Organization</option>
+        <option value="Chemical">Chemical</option>
+        <option value="MovementLog">Movement Log</option>
+        <option value="BlockchainAnomaly">Blockchain Anomaly</option>
+      </select>
+    </div>
+    
+    <button class="btn btn-outline-secondary" onclick="resetFilters()">Reset Filters</button>
+  </div>
+  
+  <div class="logs-container">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Timestamp</th>
+          <th>Action</th>
+          <th>User</th>
+          <th>Organization</th>
+          <th>Object Type</th>
+          <th>Object ID</th>
+          <th>Description</th>
+          <th>IP Address</th>
+        </tr>
+      </thead>
+      <tbody id="logsTableBody">
+        {% for log in logs %}
+        <tr data-action="{{ log.action_type }}" data-object="{{ log.object_type }}">
+          <td>{{ log.id }}</td>
+          <td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+          <td>
+            <span class="action-badge {{ log.action_type }}">
+              {{ log.action_type|replace('_', ' ')|title }}
+            </span>
+          </td>
+          <td>
+            {% if log.user %}
+              <a href="{{ url_for('auth_bp.view_profile', user_id=log.user.id) }}">{{ log.user.username }}</a>
+            {% else %}
+              System
+            {% endif %}
+          </td>
+          <td>
+            {% if log.organization %}
+              {{ log.organization.name }}
+            {% else %}
+              -
+            {% endif %}
+          </td>
+          <td>{{ log.object_type }}</td>
+          <td>{{ log.object_id }}</td>
+          <td>{{ log.description }}</td>
+          <td>{{ log.ip_address }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<style>
+  .admin-content {
+    padding: 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  
+  .header-with-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  
+  .filter-section {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  
+  .filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  
+  .filter-group label {
+    font-weight: bold;
+    font-size: 0.9rem;
+  }
+  
+  .filter-group select {
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    min-width: 200px;
+  }
+  
+  .logs-container {
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    overflow: auto;
+  }
+  
+  .table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 0;
+  }
+  
+  .table th, .table td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+  }
+  
+  .table th {
+    background-color: #f8f9fa;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  
+  .action-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: bold;
+  }
+  
+  .action-badge.login {
+    background-color: #28a745;
+    color: white;
+  }
+  
+  .action-badge.logout {
+    background-color: #6c757d;
+    color: white;
+  }
+  
+  .action-badge.registration {
+    background-color: #007bff;
+    color: white;
+  }
+  
+  .action-badge.organization_creation,
+  .action-badge.organization_update {
+    background-color: #17a2b8;
+    color: white;
+  }
+  
+  .action-badge.user_activation {
+    background-color: #28a745;
+    color: white;
+  }
+  
+  .action-badge.user_deactivation {
+    background-color: #dc3545;
+    color: white;
+  }
+  
+  .action-badge.chemical_registration {
+    background-color: #6f42c1;
+    color: white;
+  }
+  
+  .action-badge.movement_log {
+    background-color: #fd7e14;
+    color: white;
+  }
+  
+  .action-badge.anomaly_resolution {
+    background-color: #dc3545;
+    color: white;
+  }
+  
+  .btn {
+    display: inline-block;
+    padding: 8px 15px;
+    border-radius: 4px;
+    text-decoration: none;
+    font-weight: bold;
+    cursor: pointer;
+    border: none;
+  }
+  
+  .btn-secondary {
+    background-color: #6c757d;
+    color: white;
+  }
+  
+  .btn-outline-secondary {
+    background-color: transparent;
+    color: #6c757d;
+    border: 1px solid #6c757d;
+  }
+</style>
+
+<script>
+  function filterLogs() {
+    const actionFilter = document.getElementById('actionFilter').value;
+    const objectFilter = document.getElementById('objectFilter').value;
+    
+    const rows = document.querySelectorAll('#logsTableBody tr');
+    
+    rows.forEach(row => {
+      const actionMatch = actionFilter === 'all' || row.getAttribute('data-action') === actionFilter;
+      const objectMatch = objectFilter === 'all' || row.getAttribute('data-object') === objectFilter;
+      
+      if (actionMatch && objectMatch) {
+        row.style.display = '';
+      } else {
+        row.style.display = 'none';
+      }
+    });
+  }
+  
+  function resetFilters() {
+    document.getElementById('actionFilter').value = 'all';
+    document.getElementById('objectFilter').value = 'all';
+    filterLogs();
+  }
+</script>
+{% endblock %}
