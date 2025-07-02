@@ -6,6 +6,21 @@
 <div class="chemical-detail">
     <h2>Chemical Details: {{ chemical.name }}</h2>
     
+    {% if anomalies %}
+    <div class="alert alert-warning anomaly-alert">
+        <h4><i class="fas fa-exclamation-triangle"></i> Anomalies Detected</h4>
+        <ul class="anomaly-list">
+            {% for anomaly in anomalies %}
+            <li>
+                <strong>{{ anomaly.anomaly_type|replace('_', ' ')|title }}:</strong> 
+                {{ anomaly.description }}
+                <span class="anomaly-date">(Detected: {{ anomaly.detected_at.strftime('%Y-%m-%d %H:%M') }})</span>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+    
     <div class="detail-section">
         <h3>Basic Information</h3>
         <div class="detail-grid">
@@ -81,6 +96,13 @@
     
     <div class="detail-section">
         <h3>Movement History</h3>
+        
+        <div class="detail-actions">
+            <a href="{{ url_for('dashboard_bp.dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+            {% if current_user.is_admin %}
+            <a href="{{ url_for('admin_bp.anomalies') }}" class="btn btn-warning">View All Anomalies</a>
+            {% endif %}
+        </div>
         {% if logs %}
         <table>
             <tr>
@@ -245,6 +267,17 @@ function updateVerificationStatus(logIndex, verified, details = {}) {
                 if (timeElement) timeElement.textContent = `Time: ${new Date(details.timestamp * 1000).toLocaleString()}`;
             }
             statusDetails.style.display = 'block';
+            
+            // Update the validation status in the row to 'verified' and make the entire row green
+            const row = statusElement.closest('tr');
+            if (row) {
+                row.classList.add('blockchain-verified-row');
+                const validationStatusElement = row.querySelector('.validation-status');
+                if (validationStatusElement) {
+                    validationStatusElement.textContent = 'Verified';
+                    validationStatusElement.className = 'validation-status verified';
+                }
+            }
         } else {
             statusText.textContent = 'Pending';
             statusText.className = 'status-text pending';
@@ -257,8 +290,51 @@ function updateVerificationStatus(logIndex, verified, details = {}) {
 // Add styles for blockchain status and validation
 const style = document.createElement('style');
 style.textContent = `
+    /* Anomaly Alert Styles */
+    .anomaly-alert {
+        margin-bottom: 20px;
+        padding: 15px;
+        border-radius: 8px;
+        background-color: #fff3cd;
+        border-left: 5px solid #ffc107;
+    }
+    
+    .anomaly-alert h4 {
+        margin-top: 0;
+        color: #856404;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .anomaly-list {
+        margin-top: 10px;
+        padding-left: 25px;
+    }
+    
+    .anomaly-list li {
+        margin-bottom: 8px;
+    }
+    
+    .anomaly-date {
+        font-size: 0.8rem;
+        color: #6c757d;
+        margin-left: 5px;
+    }
+    
+    .detail-actions {
+        margin-bottom: 15px;
+        display: flex;
+        gap: 10px;
+    }
+    
     .suspicious-movement {
         background-color: #fff0f0;
+    }
+    
+    .blockchain-verified-row {
+        background-color: #e8f5e9 !important;
+        transition: background-color 0.5s ease;
     }
     
     .validation-status {
@@ -351,6 +427,136 @@ fetch('{{ url_for("main.blockchain_status") }}')
         
         // Handle different response scenarios
         if (data.success) {
+            // Check for chemical registration information
+            console.log('Chemical registration data:', data.chemical_registration);
+            if (data.chemical_registration && data.chemical_registration.registered === true) {
+                console.log('Chemical is registered on blockchain:', data.chemical_registration);
+                
+                // Create and display chemical registration info
+                const registrationInfo = document.createElement('div');
+                registrationInfo.className = 'blockchain-registration-info';
+                registrationInfo.innerHTML = `
+                    <div class="blockchain-registration-header">
+                        <h3>BLOCKCHAIN REGISTRATION STATUS</h3>
+                        <span class="verified-badge">REGISTERED ON BLOCKCHAIN ✓</span>
+                    </div>
+                    <div class="blockchain-registration-details">
+                        <p><strong>Chemical ID:</strong> {{ chemical.rfid_tag }}</p>
+                        <p><strong>Chemical Name:</strong> {{ chemical.name }}</p>
+                        <p><strong>Manufacturer:</strong> {{ chemical.manufacturer_org.name }}</p>
+                        <p><strong>Movement Records:</strong> ${data.chemical_registration.movement_count || 0}</p>
+                        <p><strong>Transaction Hash:</strong> <span class="tx-hash">${data.chemical_registration.transaction_hash || 'N/A'}</span></p>
+                    </div>
+                `;
+                
+                // Add special styling for the blockchain registration status
+                const style = document.createElement('style');
+                style.textContent = `
+                    .blockchain-registration-info {
+                        border: 2px solid #2ecc71;
+                        border-radius: 5px;
+                        padding: 0;
+                        margin-bottom: 20px;
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                    }
+                    
+                    .blockchain-registration-header {
+                        background-color: #2ecc71;
+                        color: white;
+                        padding: 10px 15px;
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                    }
+                    
+                    .blockchain-registration-header h3 {
+                        margin: 0;
+                        font-size: 18px;
+                    }
+                    
+                    .verified-badge {
+                        background-color: white;
+                        color: #2ecc71;
+                        padding: 5px 10px;
+                        border-radius: 20px;
+                        font-weight: bold;
+                        font-size: 14px;
+                    }
+                    
+                    .blockchain-registration-details {
+                        padding: 15px;
+                        background-color: #f8f9fa;
+                    }
+                    
+                    .blockchain-registration-details p {
+                        margin: 8px 0;
+                    }
+                    
+                    .tx-hash {
+                        font-family: monospace;
+                        background-color: #e9ecef;
+                        padding: 2px 5px;
+                        border-radius: 3px;
+                    }
+                `;
+                document.head.appendChild(style);
+                
+                // Insert at the top of the verification section
+                const verificationSection = document.querySelector('.blockchain-verification');
+                if (verificationSection) {
+                    verificationSection.insertBefore(registrationInfo, verificationSection.firstChild);
+                }
+                
+                // Check if there are local movement logs but no blockchain records
+                // This indicates movements that failed validation
+                const localLogCount = parseInt("{{ movement_logs|length }}");
+                if (localLogCount > 0 && (data.history.length === 0 || data.history.length < localLogCount)) {
+                    console.log(`Warning: ${localLogCount} local logs but only ${data.history.length} blockchain records`);
+                    
+                    // Create validation warning
+                    const validationWarning = document.createElement('div');
+                    validationWarning.className = 'blockchain-validation-warning';
+                    validationWarning.innerHTML = `
+                        <div class="alert alert-warning">
+                            <strong>Warning:</strong> Some movement records exist locally but were not recorded on the blockchain.
+                            This may be due to validation failures or suspicious movement patterns.
+                            <br>
+                            <small>Local records: ${localLogCount}, Blockchain records: ${data.history.length}</small>
+                        </div>
+                    `;
+                    
+                    // Insert after registration info
+                    registrationInfo.insertAdjacentElement('afterend', validationWarning);
+                    
+                    // Add some styling
+                    const style = document.createElement('style');
+                    style.textContent = `
+                        .blockchain-validation-warning {
+                            margin: 15px 0;
+                        }
+                    `;
+                    document.head.appendChild(style);
+                }
+            } else {
+                console.log('Chemical is not registered on blockchain');
+                
+                // Create and display not registered message
+                const registrationInfo = document.createElement('div');
+                registrationInfo.className = 'blockchain-registration-info not-registered';
+                registrationInfo.innerHTML = `
+                    <h4>Blockchain Registration</h4>
+                    <p><strong>Status:</strong> <span class="not-verified">Not Found ✗</span></p>
+                    <p>This chemical is not registered on the blockchain.</p>
+                `;
+                
+                // Insert at the top of the verification section
+                const verificationSection = document.querySelector('.blockchain-verification');
+                if (verificationSection) {
+                    verificationSection.insertBefore(registrationInfo, verificationSection.firstChild);
+                }
+            }
+            
+            // Handle movement history
             if (data.history && data.history.length === 0) {
                 // No history records found
                 document.querySelectorAll('.blockchain-status').forEach((el, index) => {

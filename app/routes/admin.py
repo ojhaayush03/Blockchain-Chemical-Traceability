@@ -1,6 +1,6 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, abort
+from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
-from app.models import User, Organization, RoleType, AuditLog, Chemical, MovementLog, BlockchainAnomaly
+from app.models import User, Organization, AuditLog, Chemical, MovementLog, BlockchainAnomaly
 from app.extensions import db
 from flask_wtf import FlaskForm
 from wtforms import StringField, TextAreaField, BooleanField, SubmitField
@@ -279,8 +279,28 @@ def audit_logs():
 @admin_bp.route('/anomalies')
 @admin_required
 def view_anomalies():
+    """View and manage blockchain anomalies"""
+    # Get all anomalies, ordered by most recent first
     anomalies = BlockchainAnomaly.query.order_by(BlockchainAnomaly.detected_at.desc()).all()
-    return render_template('admin/anomalies.html', anomalies=anomalies)
+    
+    # Get statistics
+    open_anomalies = sum(1 for a in anomalies if a.resolution_status == 'open')
+    resolved_anomalies = sum(1 for a in anomalies if a.resolution_status == 'resolved')
+    false_positives = sum(1 for a in anomalies if a.resolution_status == 'false_positive')
+    
+    # Group by type
+    anomaly_types = {}
+    for anomaly in anomalies:
+        if anomaly.anomaly_type not in anomaly_types:
+            anomaly_types[anomaly.anomaly_type] = 0
+        anomaly_types[anomaly.anomaly_type] += 1
+    
+    return render_template('admin/anomalies.html', 
+                          anomalies=anomalies,
+                          open_anomalies=open_anomalies,
+                          resolved_anomalies=resolved_anomalies,
+                          false_positives=false_positives,
+                          anomaly_types=anomaly_types)
 
 @admin_bp.route('/anomalies/resolve/<int:anomaly_id>', methods=['POST'])
 @admin_required

@@ -11,6 +11,45 @@
     </div>
   </div>
   
+  <!-- Anomaly Statistics -->
+  <div class="anomaly-stats">
+    <div class="stat-card">
+      <h4>Total Anomalies</h4>
+      <div class="stat-value">{{ anomalies|length }}</div>
+    </div>
+    
+    <div class="stat-card warning">
+      <h4>Open</h4>
+      <div class="stat-value">{{ open_anomalies }}</div>
+    </div>
+    
+    <div class="stat-card success">
+      <h4>Resolved</h4>
+      <div class="stat-value">{{ resolved_anomalies }}</div>
+    </div>
+    
+    <div class="stat-card info">
+      <h4>False Positives</h4>
+      <div class="stat-value">{{ false_positives }}</div>
+    </div>
+  </div>
+  
+  <!-- Anomaly Types Chart -->
+  <div class="anomaly-types">
+    <h3>Anomaly Types</h3>
+    <div class="types-chart">
+      {% for type, count in anomaly_types.items() %}
+      <div class="type-bar">
+        <div class="type-name">{{ type|replace('_', ' ')|title }}</div>
+        <div class="type-bar-container">
+          {% set percent = (count / anomalies|length * 100) | round %}
+          <div class="type-bar-fill" style="width:{{ percent }}%;">{{ count }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  
   {% with messages = get_flashed_messages(with_categories=true) %}
   {% if messages %}
       {% for category, message in messages %}
@@ -84,19 +123,19 @@
                 </div>
                 {% endif %}
                 
-                {% if anomaly.movement_id %}
+                {% if anomaly.movement_log_id %}
                 <div class="affected-item">
                   <span class="item-type">Movement:</span>
-                  <a href="{{ url_for('main_bp.view_movement', movement_id=anomaly.movement_id) }}">
-                    Movement #{{ anomaly.movement_id }}
+                  <a href="{{ url_for('main_bp.view_movement', movement_id=anomaly.movement_log_id) }}">
+                    Movement #{{ anomaly.movement_log_id }}
                   </a>
                 </div>
                 {% endif %}
                 
-                {% if anomaly.blockchain_hash %}
+                {% if anomaly.blockchain_tx_hash %}
                 <div class="affected-item">
                   <span class="item-type">Blockchain Hash:</span>
-                  <span class="hash-value">{{ anomaly.blockchain_hash }}</span>
+                  <span class="hash-value">{{ anomaly.blockchain_tx_hash }}</span>
                 </div>
                 {% endif %}
               </div>
@@ -111,7 +150,7 @@
                   <div class="resolution-meta">
                     Resolved by: 
                     {% if anomaly.resolved_by %}
-                      <a href="{{ url_for('auth_bp.view_profile', user_id=anomaly.resolved_by_id) }}">
+                      <a href="{{ url_for('auth_bp.view_profile', username=anomaly.resolved_by.username) }}">
                         {{ anomaly.resolved_by.username }}
                       </a>
                     {% else %}

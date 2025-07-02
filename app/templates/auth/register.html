@@ -88,10 +88,10 @@
             </div>
             
             <div class="form-group">
-                {{ form.password2.label }} {{ form.password2(class="form-control") }}
-                {% if form.password2.errors %}
+                {{ form.confirm_password.label }} {{ form.confirm_password(class="form-control") }}
+                {% if form.confirm_password.errors %}
                     <div class="error">
-                        {% for error in form.password2.errors %}
+                        {% for error in form.confirm_password.errors %}
                         <span>{{ error }}</span>
                         {% endfor %}
                     </div>

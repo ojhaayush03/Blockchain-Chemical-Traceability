@@ -129,13 +129,19 @@
       </div>
       
       <div class="receipt-actions">
-        <form method="POST" action="{{ url_for('main_bp.confirm_receipt') }}" id="confirmForm">
+        <form method="POST" action="{{ url_for('customer_bp.confirm_receipt', movement_id=movement.id) }}" id="confirmForm">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="hidden" name="movement_id" id="confirmMovementId">
+          <input type="hidden" name="movement_id" id="confirmMovementId" value="{{ movement.id }}">
           
           <div class="form-group">
             <label for="receipt_notes">Receipt Notes:</label>
             <textarea name="receipt_notes" id="receipt_notes" class="form-control" rows="3"></textarea>
+          </div>
+          
+          <div class="form-group">
+            <label for="received_quantity">Actual Received Quantity:</label>
+            <input type="number" name="received_quantity" id="received_quantity" class="form-control" step="0.01" value="{{ movement.quantity_moved }}">
+            <small class="form-text text-muted">Enter the actual quantity received. If it differs by more than 2% from expected quantity, an anomaly will be recorded.</small>
           </div>
           
           <div class="form-group checkbox-group">

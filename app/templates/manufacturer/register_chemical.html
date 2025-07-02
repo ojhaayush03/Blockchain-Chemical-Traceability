@@ -7,7 +7,7 @@
   <div class="header-with-actions">
     <h2>Register New Chemical</h2>
     <div class="action-buttons">
-      <a href="{{ url_for('dashboard_bp.dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+      <a href="{{ url_for('manufacturer_bp.dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
     </div>
   </div>
   
@@ -20,7 +20,7 @@
   {% endwith %}
   
   <div class="form-container">
-    <form method="POST" action="{{ url_for('main_bp.register_chemical') }}" enctype="multipart/form-data">
+    <form method="POST" action="{{ url_for('manufacturer_bp.register_chemical') }}" enctype="multipart/form-data">
       {{ form.csrf_token }}
       
       <div class="form-section">
@@ -151,10 +151,10 @@
         </div>
         
         <div class="form-group">
-          {{ form.storage_conditions.label }} {{ form.storage_conditions(class="form-control") }}
-          {% if form.storage_conditions.errors %}
+          {{ form.storage_condition.label }} {{ form.storage_condition(class="form-control") }}
+          {% if form.storage_condition.errors %}
             <div class="error">
-              {% for error in form.storage_conditions.errors %}
+              {% for error in form.storage_condition.errors %}
               <span>{{ error }}</span>
               {% endfor %}
             </div>
@@ -174,11 +174,11 @@
       </div>
       
       <div class="form-section">
-        <h3>RFID and Tracking</h3>
+        <h3>RFID Tracking</h3>
         
         <div class="form-group">
           {{ form.rfid_tag.label }} {{ form.rfid_tag(class="form-control") }}
-          <small class="form-text text-muted">Scan or enter the RFID tag ID</small>
+          <small class="form-text text-muted">Leave blank to auto-generate</small>
           {% if form.rfid_tag.errors %}
             <div class="error">
               {% for error in form.rfid_tag.errors %}
@@ -189,8 +189,8 @@
         </div>
         
         <div class="form-group">
-          {{ form.initial_location.label }} {{ form.initial_location(class="form-control") }}
-          <small class="form-text text-muted">Where the chemical will be stored initially</small>
+          {{ form.initial_location.label }} {{ form.initial_location(class="form-control", placeholder="Storage") }}
+          <small class="form-text text-muted">Initial storage location (defaults to 'Storage')</small>
           {% if form.initial_location.errors %}
             <div class="error">
               {% for error in form.initial_location.errors %}
@@ -199,6 +199,10 @@
             </div>
           {% endif %}
         </div>
+      </div>
+        
+      <div class="form-section">
+        <h3>Documentation</h3>
         
         <div class="form-group">
           {{ form.msds_document.label }} {{ form.msds_document(class="form-control-file") }}

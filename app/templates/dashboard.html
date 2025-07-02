@@ -33,6 +33,20 @@
 </div>
 {% endif %}
 
+<div class="blockchain-status-container" id="blockchainStatusContainer">
+    <h3>Blockchain Registration Status</h3>
+    <div class="blockchain-connection-status">
+        <div id="connectionStatus" class="status-indicator">
+            <span class="status-dot"></span>
+            <span class="status-text">Checking blockchain connection...</span>
+        </div>
+    </div>
+    
+    <div id="registeredChemicals" class="registered-chemicals-list">
+        <div class="loading">Loading registered chemicals...</div>
+    </div>
+</div>
+
 <h3>Chemicals List</h3>
 
 {% if current_user.role.name == 'MANUFACTURER' %}
@@ -100,7 +114,7 @@
 <div class="form-modal" id="chemicalFormModal">
     <div class="form-content">
         <h3>Register New Chemical</h3>
-        <form id="addChemicalForm" method="POST" action="{{ url_for('dashboard_bp.add_chemical') }}" onsubmit="handleFormSubmit(event)">
+        <form id="addChemicalForm" method="POST" action="{{ url_for('manufacturer_bp.register_chemical') }}" onsubmit="handleFormSubmit(event)">
             <label>Name</label>
             <input type="text" name="name" required>
             <label>RFID Tag</label>
@@ -151,14 +165,19 @@ async function handleFormSubmit(event) {
     formData.append('organization_id', '{{ current_user.organization_id }}');
     formData.append('registered_by_id', '{{ current_user.id }}');
     
+    console.log('Submitting chemical registration form');
+    
     // Convert FormData to JSON
     const data = {};
     for (let [key, value] of formData.entries()) {
         data[key] = value;
     }
     
+    console.log('Form data:', data);
+    
     try {
-        const response = await fetch('/register-chemical', {
+        console.log('Sending request to register chemical on blockchain');
+        const response = await fetch('{{ url_for("main.register_chemical") }}', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -166,13 +185,47 @@ async function handleFormSubmit(event) {
             },
             body: JSON.stringify(data)
         });
+        console.log('Response received:', response.status);
         
         const result = await response.json();
+        console.log('Full API response:', result);
         
         if (response.status === 201) {
             // Show success message with blockchain details
-            const message = `Chemical registered successfully!\n\nBlockchain Transaction Details:\nTransaction Hash: ${result.blockchain?.tx_hash || 'N/A'}\nBlock Number: ${result.blockchain?.block_number || 'N/A'}`;
-            showNotification('success', 'Chemical registered successfully!');
+            console.log('Checking for blockchain details in response...');
+            
+            if (result.blockchain && result.blockchain.transaction_hash) {
+                console.log('Blockchain result found:', result.blockchain);
+                
+                const txHash = result.blockchain.transaction_hash || 'N/A';
+                console.log('Transaction hash:', txHash);
+                
+                const blockNumber = result.blockchain.block_number || 'N/A';
+                console.log('Block number:', blockNumber);
+                
+                const status = result.blockchain.status || 'Completed';
+                console.log('Status:', status);
+                
+                // Create a more prominent blockchain notification
+                const message = `Chemical registered successfully!`;
+                showNotification('success', message);
+                
+                // Add a separate blockchain confirmation notification
+                const blockchainMessage = `
+                    <strong>BLOCKCHAIN REGISTRATION CONFIRMED</strong><br>
+                    <div class="blockchain-details">
+                        <p><strong>Chemical:</strong> ${data.name} (${data.rfid_tag})</p>
+                        <p><strong>Transaction Hash:</strong> ${txHash}</p>
+                        <p><strong>Block Number:</strong> ${blockNumber}</p>
+                        <p><strong>Status:</strong> <span class="verified">REGISTERED ✓</span></p>
+                    </div>
+                `;
+                showBlockchainNotification('blockchain-success', blockchainMessage);
+            } else {
+                console.log('No blockchain data found in the response');
+                const message = `Chemical registered successfully! (Blockchain registration pending...)`;
+                showNotification('warning', message);
+            }
             
             // Redirect to refresh the page
             window.location.href = '{{ url_for("dashboard_bp.dashboard") }}';
@@ -184,11 +237,117 @@ async function handleFormSubmit(event) {
     }
 }
 
+function showBlockchainNotification(type, message) {
+    console.log('Showing blockchain notification');
+    
+    // Create a notification element with special styling for blockchain notifications
+    const notification = document.createElement('div');
+    notification.className = `notification blockchain-notification ${type}`;
+    notification.innerHTML = message;
+    
+    // Add close button
+    const closeButton = document.createElement('button');
+    closeButton.className = 'close-button';
+    closeButton.innerHTML = '&times;';
+    closeButton.onclick = function() {
+        notification.remove();
+    };
+    notification.appendChild(closeButton);
+    
+    // Add to document
+    document.body.appendChild(notification);
+    
+    // Add special styling
+    const style = document.createElement('style');
+    style.textContent = `
+        .blockchain-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 5px;
+            z-index: 1000;
+            max-width: 400px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            animation: slideIn 0.5s ease-out;
+            border-left: 5px solid #2ecc71;
+            background-color: #f8f9fa;
+            color: #333;
+        }
+        
+        .blockchain-success {
+            background-color: #d4edda;
+            border-color: #2ecc71;
+        }
+        
+        .blockchain-details {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: rgba(255,255,255,0.8);
+            border-radius: 4px;
+        }
+        
+        .blockchain-details p {
+            margin: 5px 0;
+        }
+        
+        .verified {
+            color: #2ecc71;
+            font-weight: bold;
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+    `;
+    document.head.appendChild(style);
+    
+    // Don't auto-remove blockchain notifications - they're important
+    // Let the user close them manually
+}
+
 function showNotification(type, message) {
+    console.log('Showing notification:', type, message);
+    
     // Create a notification element
     const notification = document.createElement('div');
     notification.className = `notification ${type}`;
-    notification.innerHTML = message;
+    
+    // Format message with line breaks
+    const formattedMessage = message.replace(/\n/g, '<br>');
+    notification.innerHTML = formattedMessage;
+    
+    // Add close button for blockchain notifications
+    if (message.includes('Blockchain Transaction Details')) {
+        console.log('Adding close button to blockchain notification');
+        notification.style.padding = '20px';
+        notification.style.maxWidth = '600px';
+        notification.style.fontSize = '16px';
+        notification.style.backgroundColor = '#f0f8ff'; // Light blue background
+        notification.style.border = '2px solid #4682b4'; // Steel blue border
+        
+        const closeBtn = document.createElement('button');
+        closeBtn.innerHTML = '×';
+        closeBtn.style.position = 'absolute';
+        closeBtn.style.right = '10px';
+        closeBtn.style.top = '10px';
+        closeBtn.style.background = 'none';
+        closeBtn.style.border = 'none';
+        closeBtn.style.fontSize = '20px';
+        closeBtn.style.cursor = 'pointer';
+        closeBtn.onclick = function() {
+            document.body.removeChild(notification);
+        };
+        
+        notification.appendChild(closeBtn);
+        
+        // For blockchain notifications, don't auto-hide
+        notification.style.position = 'fixed';
+        notification.style.top = '20px';
+        notification.style.right = '20px';
+        notification.style.zIndex = '10000';
+    }
     
     // Add to document body
     document.body.appendChild(notification);
@@ -198,13 +357,187 @@ function showNotification(type, message) {
         notification.className += ' show';
     }, 100);
     
-    // Hide and remove after 5 seconds
-    setTimeout(() => {
-        notification.className = notification.className.replace(' show', '');
+    // Only hide regular notifications automatically
+    if (!message.includes('Blockchain Transaction Details')) {
+        // Hide after 5 seconds
         setTimeout(() => {
-            document.body.removeChild(notification);
-        }, 300);
-    }, 5000);
+            notification.className = notification.className.replace(' show', '');
+            
+            // Remove from DOM after animation
+            setTimeout(() => {
+                if (document.body.contains(notification)) {
+                    document.body.removeChild(notification);
+                }
+            }, 500);
+        }, 5000);
+    }
 }
+
+// Function to fetch blockchain status
+function fetchBlockchainStatus() {
+    const connectionStatus = document.getElementById('connectionStatus');
+    const registeredChemicals = document.getElementById('registeredChemicals');
+    
+    // Add loading styles
+    const style = document.createElement('style');
+    style.textContent = `
+        .blockchain-status-container {
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+            border: 1px solid #dee2e6;
+        }
+        
+        .blockchain-connection-status {
+            margin-bottom: 15px;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 10px;
+            background-color: #6c757d;
+        }
+        
+        .status-dot.connected {
+            background-color: #2ecc71;
+        }
+        
+        .status-dot.disconnected {
+            background-color: #e74c3c;
+        }
+        
+        .registered-chemicals-list {
+            margin-top: 15px;
+        }
+        
+        .registered-chemical-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            background-color: white;
+        }
+        
+        .chemical-info {
+            flex: 1;
+        }
+        
+        .blockchain-badge {
+            background-color: #2ecc71;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        
+        .loading {
+            padding: 20px;
+            text-align: center;
+            color: #6c757d;
+        }
+        
+        .no-chemicals {
+            padding: 20px;
+            text-align: center;
+            color: #6c757d;
+            font-style: italic;
+        }
+    `;
+    document.head.appendChild(style);
+    
+    // Fetch blockchain status from server
+    fetch('/blockchain-status')
+        .then(response => response.json())
+        .then(data => {
+            console.log('Blockchain status:', data);
+            
+            // Update connection status
+            const statusDot = connectionStatus.querySelector('.status-dot');
+            const statusText = connectionStatus.querySelector('.status-text');
+            
+            if (data.connected) {
+                statusDot.classList.add('connected');
+                statusText.textContent = 'Connected to Blockchain';
+            } else {
+                statusDot.classList.add('disconnected');
+                statusText.textContent = 'Disconnected from Blockchain';
+            }
+            
+            // Update registered chemicals list
+            if (data.connected && data.registered_chemicals && data.registered_chemicals.length > 0) {
+                registeredChemicals.innerHTML = '<h4>Registered Chemicals</h4>';
+                
+                // Create a table for registered chemicals
+                const table = document.createElement('table');
+                table.className = 'table';
+                table.innerHTML = `
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Manufacturer</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="registeredChemicalsBody"></tbody>
+                `;
+                registeredChemicals.appendChild(table);
+                
+                const tbody = document.getElementById('registeredChemicalsBody');
+                
+                // Add each registered chemical to the table
+                data.registered_chemicals.forEach(chemical => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${chemical.rfid_tag}</td>
+                        <td>${chemical.name}</td>
+                        <td>${chemical.manufacturer}</td>
+                        <td><span class="blockchain-badge">REGISTERED ON BLOCKCHAIN</span></td>
+                        <td>
+                            <a href="/chemical/${chemical.rfid_tag}" class="btn btn-sm btn-primary">View Details</a>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } else if (data.connected) {
+                registeredChemicals.innerHTML = '<div class="no-chemicals">No chemicals registered on blockchain yet</div>';
+            } else {
+                registeredChemicals.innerHTML = '<div class="no-chemicals">Cannot fetch registered chemicals: Blockchain disconnected</div>';
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching blockchain status:', error);
+            connectionStatus.querySelector('.status-dot').classList.add('disconnected');
+            connectionStatus.querySelector('.status-text').textContent = 'Error connecting to blockchain';
+            registeredChemicals.innerHTML = '<div class="no-chemicals">Error loading blockchain data</div>';
+        });
+}
+
+// Call fetchBlockchainStatus when the page loads
+document.addEventListener('DOMContentLoaded', function() {
+    // Add event listener to chemical registration form
+    const chemicalForm = document.getElementById('chemicalForm');
+    if (chemicalForm) {
+        chemicalForm.addEventListener('submit', handleFormSubmit);
+    }
+    
+    // Load blockchain status and registered chemicals
+    fetchBlockchainStatus();
+});
 </script>
 {% endblock %}

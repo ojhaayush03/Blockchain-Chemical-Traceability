@@ -1,0 +1,553 @@
+{% extends 'base.html' %}
+
+{% block title %}Place New Order{% endblock %}
+
+{% block content %}
+<div class="order-container">
+  <div class="page-header">
+    <h1>Place New Chemical Order</h1>
+    <p>Request chemicals with detailed specifications and track your order through the supply chain.</p>
+  </div>
+
+  <div class="order-form-container">
+    <form method="POST" id="orderForm">
+      {{ form.hidden_tag() }}
+      <input type="hidden" id="items_data" name="items_data" value="[]">
+      
+      <div class="form-section">
+        <h3>Order Information</h3>
+        
+        <div class="form-row">
+          <div class="form-group">
+            {{ form.required_by_date.label(class="form-label") }}
+            {{ form.required_by_date(class="form-control", type="date") }}
+            {% if form.required_by_date.errors %}
+              <div class="error-message">
+                {% for error in form.required_by_date.errors %}
+                  <span>{{ error }}</span>
+                {% endfor %}
+              </div>
+            {% endif %}
+            <small class="form-text text-muted">When do you need these chemicals by?</small>
+          </div>
+          
+          <div class="form-group">
+            {{ form.delivery_address.label(class="form-label") }}
+            {{ form.delivery_address(class="form-control", rows=3) }}
+            {% if form.delivery_address.errors %}
+              <div class="error-message">
+                {% for error in form.delivery_address.errors %}
+                  <span>{{ error }}</span>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+        
+        <div class="form-group">
+          {{ form.special_instructions.label(class="form-label") }}
+          {{ form.special_instructions(class="form-control", rows=3) }}
+          {% if form.special_instructions.errors %}
+            <div class="error-message">
+              {% for error in form.special_instructions.errors %}
+                <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+          <small class="form-text text-muted">Any special handling instructions or delivery requirements?</small>
+        </div>
+      </div>
+      
+      <div class="form-section">
+        <h3>Order Items</h3>
+        <p>Add the chemicals you need to your order.</p>
+        
+        <div id="order-items">
+          <div class="order-item" id="item-template">
+            <div class="item-header">
+              <h4>Item #<span class="item-number">1</span></h4>
+              <button type="button" class="btn btn-sm btn-outline-danger remove-item" title="Remove Item">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label for="chemical_id_0" class="form-label">Select Chemical</label>
+                <select class="form-control chemical-select" name="items-0-chemical_id" id="chemical_id_0" required>
+                  <option value="">-- Select a chemical --</option>
+                  {% for chemical in available_chemicals %}
+                  <option value="{{ chemical.id }}" data-name="{{ chemical.name }}" data-cas="{{ chemical.cas_number }}" data-price="{{ chemical.unit_price }}">{{ chemical.name }} ({{ chemical.cas_number or 'No CAS' }})</option>
+                  {% endfor %}
+                </select>
+                <input type="hidden" class="chemical-name" name="items-0-chemical_name" id="chemical_name_0">
+              </div>
+              
+              <div class="form-group">
+                <label for="cas_number_0" class="form-label">CAS Number (if known)</label>
+                <input type="text" class="form-control" name="items-0-cas_number" id="cas_number_0">
+                <small class="form-text text-muted">Format: 7732-18-5 (for water)</small>
+              </div>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label for="quantity_0" class="form-label">Quantity</label>
+                <input type="number" step="0.01" min="0.01" class="form-control item-quantity" name="items-0-quantity" id="quantity_0" required>
+              </div>
+              
+              <div class="form-group">
+                <label for="unit_0" class="form-label">Unit</label>
+                <select class="form-control" name="items-0-unit" id="unit_0" required>
+                  <option value="kg">Kilograms (kg)</option>
+                  <option value="g">Grams (g)</option>
+                  <option value="L">Liters (L)</option>
+                  <option value="mL">Milliliters (mL)</option>
+                  <option value="lb">Pounds (lb)</option>
+                  <option value="oz">Ounces (oz)</option>
+                  <option value="gal">Gallons (gal)</option>
+                </select>
+              </div>
+              
+              <div class="form-group">
+                <label for="purity_0" class="form-label">Purity/Grade (if applicable)</label>
+                <input type="text" class="form-control" name="items-0-purity" id="purity_0">
+                <small class="form-text text-muted">E.g., ACS grade, 99.9%, etc.</small>
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label for="special_requirements_0" class="form-label">Special Requirements</label>
+              <textarea class="form-control" name="items-0-special_requirements" id="special_requirements_0" rows="2"></textarea>
+              <small class="form-text text-muted">Any specific requirements for this chemical?</small>
+            </div>
+          </div>
+        </div>
+        
+        <div class="form-actions">
+          <button type="button" id="add-item" class="btn btn-outline-primary">
+            <i class="fas fa-plus"></i> Add Another Chemical
+          </button>
+        </div>
+      </div>
+      
+      <div class="form-section">
+        <h3>Review & Submit</h3>
+        <p>Please review your order details before submitting.</p>
+        
+        <div class="order-summary">
+          <div class="summary-header">
+            <h4>Order Summary</h4>
+          </div>
+          <div class="summary-content">
+            <p>Total Items: <span id="total-items">1</span></p>
+          </div>
+        </div>
+        
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="terms-check" required>
+          <label class="form-check-label" for="terms-check">
+            I confirm that I am authorized to order these chemicals and that all information provided is accurate.
+          </label>
+        </div>
+        
+        <div class="form-actions">
+          <a href="{{ url_for('customer_bp.dashboard') }}" class="btn btn-outline-secondary">Cancel</a>
+          {{ form.submit(class="btn btn-primary") }}
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const orderItems = document.getElementById('order-items');
+    const addItemBtn = document.getElementById('add-item');
+    const totalItemsSpan = document.getElementById('total-items');
+    let itemCount = 1;
+    
+    // Initialize chemical selection handlers
+    initChemicalSelectionHandlers();
+    
+    function initChemicalSelectionHandlers() {
+      document.querySelectorAll('.chemical-select').forEach(select => {
+        select.addEventListener('change', function() {
+          const selectedOption = this.options[this.selectedIndex];
+          const nameField = document.getElementById(this.id.replace('chemical_id', 'chemical_name'));
+          const casField = document.getElementById(this.id.replace('chemical_id', 'cas_number'));
+          
+          if (selectedOption.value) {
+            // Set the hidden chemical name field
+            nameField.value = selectedOption.getAttribute('data-name');
+            
+            // Set the CAS number if available
+            if (casField && selectedOption.getAttribute('data-cas')) {
+              casField.value = selectedOption.getAttribute('data-cas');
+              casField.readOnly = true;
+            }
+          } else {
+            nameField.value = '';
+            if (casField) {
+              casField.value = '';
+              casField.readOnly = false;
+            }
+          }
+        });
+      });
+    }
+    
+    // Add new item
+    addItemBtn.addEventListener('click', function() {
+      itemCount++;
+      
+      // Clone the template
+      const template = document.getElementById('item-template');
+      const newItem = template.cloneNode(true);
+      
+      // Update IDs and names
+      newItem.id = `item-${itemCount}`;
+      newItem.querySelector('.item-number').textContent = itemCount;
+      
+      const inputs = newItem.querySelectorAll('input, select, textarea');
+      inputs.forEach(input => {
+        const oldName = input.name;
+        const oldId = input.id;
+        
+        if (oldName) {
+          input.name = oldName.replace('0', itemCount - 1);
+        }
+        
+        if (oldId) {
+          input.id = oldId.replace('0', itemCount - 1);
+        }
+        
+        // Clear values
+        input.value = '';
+      });
+      
+      // Update labels
+      const labels = newItem.querySelectorAll('label');
+      labels.forEach(label => {
+        const forAttr = label.getAttribute('for');
+        if (forAttr) {
+          label.setAttribute('for', forAttr.replace('0', itemCount - 1));
+        }
+      });
+      
+      // Add remove button functionality
+      const removeBtn = newItem.querySelector('.remove-item');
+      removeBtn.addEventListener('click', function() {
+        newItem.remove();
+        updateItemNumbers();
+      });
+      
+      // Append the new item
+      orderItems.appendChild(newItem);
+      updateItemNumbers();
+      
+      // Initialize chemical selection for the new item
+      initChemicalSelectionHandlers();
+    });
+    
+    // Initialize remove button for first item
+    const firstItemRemoveBtn = document.querySelector('#item-template .remove-item');
+    firstItemRemoveBtn.addEventListener('click', function() {
+      if (itemCount > 1) {
+        document.getElementById('item-template').remove();
+        updateItemNumbers();
+      }
+    });
+    
+    // Update item numbers and total count
+    function updateItemNumbers() {
+      const items = orderItems.querySelectorAll('.order-item');
+      itemCount = items.length;
+      
+      items.forEach((item, index) => {
+        item.querySelector('.item-number').textContent = index + 1;
+      });
+      
+      totalItemsSpan.textContent = itemCount;
+    }
+    
+    // Form validation
+    document.getElementById('orderForm').addEventListener('submit', function(e) {
+      const items = orderItems.querySelectorAll('.order-item');
+      
+      if (items.length === 0) {
+        e.preventDefault();
+        alert('Please add at least one chemical to your order.');
+        return false;
+      }
+      
+      // Check if all required fields are filled
+      let valid = true;
+      let itemsData = [];
+      
+      items.forEach((item, index) => {
+        const chemicalSelect = item.querySelector('.chemical-select');
+        const chemicalName = item.querySelector('.chemical-name');
+        const quantity = item.querySelector('.item-quantity');
+        const unit = item.querySelector('select[name$="-unit"]');
+        const specialReqs = item.querySelector('textarea[name$="-special_requirements"]');
+        const casNumber = item.querySelector('input[name$="-cas_number"]');
+        
+        if (!chemicalSelect || !chemicalSelect.value) {
+          valid = false;
+          chemicalSelect.classList.add('is-invalid');
+        } else {
+          chemicalSelect.classList.remove('is-invalid');
+          
+          // Add item data for submission
+          itemsData.push({
+            chemical_id: chemicalSelect.value,
+            chemical_name: chemicalName.value,
+            chemical_cas: casNumber ? casNumber.value : '',
+            quantity: quantity.value,
+            unit: unit.value,
+            special_requirements: specialReqs ? specialReqs.value : ''
+          });
+        }
+        
+        if (!quantity.value || parseFloat(quantity.value) <= 0) {
+          valid = false;
+          quantity.classList.add('is-invalid');
+        } else {
+          quantity.classList.remove('is-invalid');
+        }
+      });
+      
+      if (!valid) {
+        e.preventDefault();
+        alert('Please fill in all required fields for each chemical.');
+        return false;
+      }
+      
+      // Add items data to hidden field
+      document.getElementById('items_data').value = JSON.stringify(itemsData);
+      
+      // Check terms checkbox
+      if (!document.getElementById('terms-check').checked) {
+        e.preventDefault();
+        alert('Please confirm that you are authorized to order these chemicals.');
+        return false;
+      }
+    });
+  });
+</script>
+{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<style>
+  .order-container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+  
+  .page-header {
+    margin-bottom: 30px;
+  }
+  
+  .page-header h1 {
+    color: #2c3e50;
+    margin-bottom: 10px;
+  }
+  
+  .page-header p {
+    color: #7f8c8d;
+    font-size: 1.1rem;
+  }
+  
+  .order-form-container {
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 15px rgba(0,0,0,0.1);
+    padding: 30px;
+  }
+  
+  .form-section {
+    margin-bottom: 40px;
+    padding-bottom: 30px;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .form-section:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+  }
+  
+  .form-section h3 {
+    color: #2c3e50;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #3498db;
+    display: inline-block;
+  }
+  
+  .form-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    margin-bottom: 15px;
+  }
+  
+  .form-group {
+    flex: 1;
+    min-width: 200px;
+    margin-bottom: 15px;
+  }
+  
+  .form-label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+    color: #34495e;
+  }
+  
+  .form-control {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 16px;
+    transition: border-color 0.3s;
+  }
+  
+  .form-control:focus {
+    border-color: #3498db;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.25);
+  }
+  
+  .form-control.is-invalid {
+    border-color: #e74c3c;
+  }
+  
+  .form-text {
+    font-size: 0.85rem;
+    margin-top: 5px;
+  }
+  
+  .error-message {
+    color: #e74c3c;
+    font-size: 0.85rem;
+    margin-top: 5px;
+  }
+  
+  .order-item {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  
+  .item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+  }
+  
+  .item-header h4 {
+    margin: 0;
+    color: #2c3e50;
+  }
+  
+  .form-actions {
+    margin-top: 20px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+  
+  .order-summary {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  
+  .summary-header {
+    margin-bottom: 15px;
+  }
+  
+  .summary-header h4 {
+    margin: 0;
+    color: #2c3e50;
+  }
+  
+  .form-check {
+    margin-bottom: 20px;
+  }
+  
+  .btn {
+    padding: 10px 20px;
+    border-radius: 4px;
+    font-weight: 600;
+    transition: all 0.3s;
+  }
+  
+  .btn-primary {
+    background-color: #3498db;
+    border-color: #3498db;
+    color: white;
+  }
+  
+  .btn-primary:hover {
+    background-color: #2980b9;
+    border-color: #2980b9;
+  }
+  
+  .btn-outline-primary {
+    color: #3498db;
+    border-color: #3498db;
+    background-color: transparent;
+  }
+  
+  .btn-outline-primary:hover {
+    background-color: #3498db;
+    color: white;
+  }
+  
+  .btn-outline-secondary {
+    color: #7f8c8d;
+    border-color: #7f8c8d;
+    background-color: transparent;
+  }
+  
+  .btn-outline-secondary:hover {
+    background-color: #7f8c8d;
+    color: white;
+  }
+  
+  .btn-outline-danger {
+    color: #e74c3c;
+    border-color: #e74c3c;
+    background-color: transparent;
+  }
+  
+  .btn-outline-danger:hover {
+    background-color: #e74c3c;
+    color: white;
+  }
+  
+  @media (max-width: 768px) {
+    .form-row {
+      flex-direction: column;
+      gap: 10px;
+    }
+    
+    .form-group {
+      min-width: 100%;
+    }
+  }
+</style>
+{% endblock %}

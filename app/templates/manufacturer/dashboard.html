@@ -1,0 +1,184 @@
+{% extends 'base.html' %}
+
+{% block title %}Manufacturer Dashboard{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+  <div class="dashboard-header">
+    <h1>Manufacturer Dashboard</h1>
+    <p>Welcome, {{ current_user.first_name }} {{ current_user.last_name }}</p>
+    <div class="dashboard-actions">
+      <a href="{{ url_for('manufacturer_bp.register_chemical') }}" class="btn btn-primary">
+        <i class="fas fa-plus-circle"></i> Register New Chemical
+      </a>
+    </div>
+  </div>
+
+  <div class="dashboard-stats">
+    <div class="stat-card">
+      <div class="stat-icon">
+        <i class="fas fa-flask"></i>
+      </div>
+      <div class="stat-content">
+        <h3>{{ stats.total_chemicals }}</h3>
+        <p>Total Chemicals</p>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">
+        <i class="fas fa-truck-loading"></i>
+      </div>
+      <div class="stat-content">
+        <h3>{{ stats.pending_shipments }}</h3>
+        <p>Pending Shipments</p>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">
+        <i class="fas fa-check-circle"></i>
+      </div>
+      <div class="stat-content">
+        <h3>{{ stats.shipped_chemicals }}</h3>
+        <p>Shipped Chemicals</p>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">
+        <i class="fas fa-industry"></i>
+      </div>
+      <div class="stat-content">
+        <h3>{{ stats.active_batches }}</h3>
+        <p>Active Batches</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="dashboard-content">
+    <div class="content-section">
+      <div class="section-header">
+        <h2>My Registered Chemicals</h2>
+        <div class="section-actions">
+          <div class="filter-group">
+            <label for="chemicalFilter">Filter by:</label>
+            <select id="chemicalFilter" class="form-control">
+              <option value="all">All Chemicals</option>
+              <option value="in_stock">In Stock</option>
+              <option value="shipped">Shipped</option>
+              <option value="delivered">Delivered</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="chemical-list">
+        {% if chemicals %}
+          {% for chemical in chemicals %}
+          <div class="chemical-card" data-status="{{ chemical.current_location }}">
+            <div class="chemical-header">
+              <div class="chemical-title">
+                <h3>{{ chemical.name }}</h3>
+                <span class="chemical-status">{{ chemical.current_location }}</span>
+              </div>
+              <div class="chemical-meta">
+                <p>CAS: {{ chemical.cas_number }}</p>
+                <p>Batch: {{ chemical.batch_number }}</p>
+              </div>
+            </div>
+            
+            <div class="chemical-summary">
+              <p><strong>Quantity:</strong> {{ chemical.quantity }} {{ chemical.unit }}</p>
+              <p><strong>Registered:</strong> {{ chemical.created_at.strftime('%Y-%m-%d') }}</p>
+              {% if chemical.expiry_date %}
+              <p><strong>Expires:</strong> {{ chemical.expiry_date.strftime('%Y-%m-%d') }}</p>
+              {% endif %}
+            </div>
+            
+            <div class="chemical-actions">
+              <a href="{{ url_for('dashboard_bp.chemical_detail', chemical_id=chemical.id) }}" class="btn btn-outline-primary">View Details</a>
+              {% if chemical.current_location == 'Storage' %}
+              <a href="{{ url_for('manufacturer_bp.prepare_shipment', chemical_id=chemical.id) }}" class="btn btn-outline-secondary">Prepare Shipment</a>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="empty-state">
+            <div class="empty-icon">
+              <i class="fas fa-flask"></i>
+            </div>
+            <h3>No Chemicals Registered</h3>
+            <p>You haven't registered any chemicals yet. Click the button below to register your first chemical.</p>
+            <a href="{{ url_for('manufacturer_bp.register_chemical') }}" class="btn btn-primary">Register New Chemical</a>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="content-section">
+      <div class="section-header">
+        <h2>Recent Shipments</h2>
+      </div>
+
+      <div class="shipment-list">
+        {% if shipments %}
+          {% for shipment in shipments %}
+          <div class="shipment-card">
+            <div class="shipment-header">
+              <h3>{{ shipment.chemical.name }}</h3>
+              <span class="shipment-date">{{ shipment.timestamp.strftime('%Y-%m-%d') }}</span>
+            </div>
+            <div class="shipment-details">
+              <p><strong>Destination:</strong> {{ shipment.destination_org.name }}</p>
+              <p><strong>Status:</strong> 
+                <span class="badge bg-{{ 'success' if shipment.status == 'delivered' else 'warning' }}">
+                  {{ shipment.status|title }}
+                </span>
+              </p>
+              <p><strong>Tracking:</strong> {{ shipment.tracking_number or 'N/A' }}</p>
+            </div>
+            <div class="shipment-actions">
+              <a href="{{ url_for('manufacturer_bp.view_shipment', shipment_id=shipment.id) }}" class="btn btn-sm btn-outline-primary">View Details</a>
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="empty-state">
+            <div class="empty-icon">
+              <i class="fas fa-truck"></i>
+            </div>
+            <h3>No Recent Shipments</h3>
+            <p>You haven't shipped any chemicals recently.</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const filterSelect = document.getElementById('chemicalFilter');
+    const chemicalCards = document.querySelectorAll('.chemical-card');
+    
+    filterSelect.addEventListener('change', function() {
+      const selectedValue = this.value;
+      
+      chemicalCards.forEach(card => {
+        const status = card.getAttribute('data-status');
+        
+        if (selectedValue === 'all') {
+          card.style.display = 'block';
+        } else if (selectedValue === 'in_stock' && status === 'Storage') {
+          card.style.display = 'block';
+        } else if (selectedValue === 'shipped' && status === 'In Transit') {
+          card.style.display = 'block';
+        } else if (selectedValue === 'delivered' && status === 'Delivered') {
+          card.style.display = 'block';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    });
+  });
+</script>
+{% endblock %}

@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from app.extensions import db
-from app.models import Chemical, MovementLog, Organization, RoleType
+from app.models import Chemical, MovementLog, Organization, RoleType, BlockchainAnomaly, AuditLog
 from app.decorators import manufacturer_required
 from flask_login import login_required, current_user
 from datetime import datetime
@@ -55,7 +55,42 @@ def chemical_detail(chemical_id):
     
     # Get movement logs for this chemical's RFID tag
     movement_logs = MovementLog.query.filter_by(tag_id=chemical.rfid_tag).order_by(MovementLog.timestamp.desc()).all()
-    return render_template('chemical_detail.html', chemical=chemical, logs=movement_logs)
+    
+    # Get anomalies related to this chemical
+    anomalies = BlockchainAnomaly.query.filter_by(chemical_id=chemical.id).order_by(BlockchainAnomaly.detected_at.desc()).all()
+    
+    return render_template('chemical_detail.html', 
+                          chemical=chemical, 
+                          logs=movement_logs,
+                          anomalies=anomalies)
+
+@dashboard_bp.route('/movement/<int:movement_id>')
+@login_required
+def movement_detail(movement_id):
+    """View details of a specific movement log"""
+    movement = MovementLog.query.get_or_404(movement_id)
+    
+    # Get the chemical associated with this movement
+    chemical = Chemical.query.get(movement.chemical_id) if movement.chemical_id else None
+    
+    # Get the source and destination organizations
+    source_org = Organization.query.get(movement.source_org_id) if movement.source_org_id else None
+    destination_org = Organization.query.get(movement.destination_org_id) if movement.destination_org_id else None
+    
+    # Get related audit logs
+    audit_logs = AuditLog.query.filter_by(
+        object_type='MovementLog',
+        object_id=movement.id
+    ).order_by(AuditLog.timestamp.desc()).all()
+    
+    return render_template(
+        'movement_detail.html',
+        movement=movement,
+        chemical=chemical,
+        source_org=source_org,
+        destination_org=destination_org,
+        audit_logs=audit_logs
+    )
 
 @dashboard_bp.route('/add_chemical', methods=['POST'])
 @login_required

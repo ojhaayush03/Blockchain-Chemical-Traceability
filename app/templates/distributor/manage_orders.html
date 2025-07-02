@@ -1,0 +1,481 @@
+{% extends 'base.html' %}
+
+{% block title %}Manage Customer Orders{% endblock %}
+
+{% block content %}
+<div class="manage-orders-container">
+  <div class="page-header">
+    <h1>Manage Customer Orders</h1>
+    <div class="header-actions">
+      <div class="filter-controls">
+        <select id="statusFilter" class="form-control">
+          <option value="all">All Statuses</option>
+          <option value="pending">Pending Approval</option>
+          <option value="approved">Approved</option>
+          <option value="processing">Processing</option>
+          <option value="shipped">Shipped</option>
+          <option value="delivered">Delivered</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+        <select id="customerFilter" class="form-control">
+          <option value="all">All Customers</option>
+          {% for org in organizations %}
+          <option value="{{ org.id }}">{{ org.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="search-box">
+        <input type="text" id="orderSearch" class="form-control" placeholder="Search orders...">
+        <button id="searchBtn" class="btn btn-outline-primary">
+          <i class="fas fa-search"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+  
+  <div class="orders-stats">
+    <div class="stat-card">
+      <div class="stat-icon pending">
+        <i class="fas fa-clock"></i>
+      </div>
+      <div class="stat-content">
+        <div class="stat-value">{{ stats.pending_orders }}</div>
+        <div class="stat-label">Pending Orders</div>
+      </div>
+    </div>
+    
+    <div class="stat-card">
+      <div class="stat-icon processing">
+        <i class="fas fa-cog"></i>
+      </div>
+      <div class="stat-content">
+        <div class="stat-value">{{ stats.processing_orders }}</div>
+        <div class="stat-label">Processing</div>
+      </div>
+    </div>
+    
+    <div class="stat-card">
+      <div class="stat-icon shipped">
+        <i class="fas fa-truck"></i>
+      </div>
+      <div class="stat-content">
+        <div class="stat-value">{{ stats.shipped_orders }}</div>
+        <div class="stat-label">Shipped</div>
+      </div>
+    </div>
+    
+    <div class="stat-card">
+      <div class="stat-icon completed">
+        <i class="fas fa-check-circle"></i>
+      </div>
+      <div class="stat-content">
+        <div class="stat-value">{{ stats.completed_orders }}</div>
+        <div class="stat-label">Completed</div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="orders-table-container">
+    <table class="orders-table">
+      <thead>
+        <tr>
+          <th>Order #</th>
+          <th>Customer</th>
+          <th>Date</th>
+          <th>Required By</th>
+          <th>Items</th>
+          <th>Total Amount</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for order in orders %}
+        <tr data-status="{{ order.status }}" data-customer="{{ order.customer_org_id }}">
+          <td>{{ order.order_number }}</td>
+          <td>{{ order.customer_organization.name }}</td>
+          <td>{{ order.order_date.strftime('%Y-%m-%d') }}</td>
+          <td>{{ order.required_by_date.strftime('%Y-%m-%d') if order.required_by_date else 'Not specified' }}</td>
+          <td>{{ order.items|length }}</td>
+          <td>${{ "%.2f"|format(order.total_amount) }}</td>
+          <td>
+            <span class="status-badge {{ order.status }}">{{ order.status|title }}</span>
+          </td>
+          <td class="actions-cell">
+            <a href="{{ url_for('distributor_bp.view_order', order_id=order.id) }}" class="btn btn-sm btn-outline-primary">
+              <i class="fas fa-eye"></i> View
+            </a>
+            
+            {% if order.status == 'pending' %}
+            <a href="{{ url_for('distributor_bp.approve_order', order_id=order.id) }}" class="btn btn-sm btn-success">
+              <i class="fas fa-check"></i> Approve
+            </a>
+            {% endif %}
+            
+            {% if order.status == 'approved' %}
+            <a href="{{ url_for('distributor_bp.process_order', order_id=order.id) }}" class="btn btn-sm btn-info">
+              <i class="fas fa-cog"></i> Process
+            </a>
+            {% endif %}
+            
+            {% if order.status == 'processing' %}
+            <a href="{{ url_for('distributor_bp.ship_order', order_id=order.id) }}" class="btn btn-sm btn-primary">
+              <i class="fas fa-truck"></i> Ship
+            </a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  
+  {% if not orders %}
+  <div class="no-orders">
+    <div class="no-data-message">
+      <i class="fas fa-inbox"></i>
+      <p>No orders found</p>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Status filter functionality
+    const statusFilter = document.getElementById('statusFilter');
+    const customerFilter = document.getElementById('customerFilter');
+    const searchInput = document.getElementById('orderSearch');
+    const searchBtn = document.getElementById('searchBtn');
+    const orderRows = document.querySelectorAll('.orders-table tbody tr');
+    
+    function applyFilters() {
+      const statusValue = statusFilter.value;
+      const customerValue = customerFilter.value;
+      const searchValue = searchInput.value.toLowerCase();
+      
+      orderRows.forEach(row => {
+        const rowStatus = row.getAttribute('data-status');
+        const rowCustomer = row.getAttribute('data-customer');
+        const rowText = row.textContent.toLowerCase();
+        
+        const statusMatch = statusValue === 'all' || rowStatus === statusValue;
+        const customerMatch = customerValue === 'all' || rowCustomer === customerValue;
+        const searchMatch = searchValue === '' || rowText.includes(searchValue);
+        
+        if (statusMatch && customerMatch && searchMatch) {
+          row.style.display = '';
+        } else {
+          row.style.display = 'none';
+        }
+      });
+      
+      // Show/hide no orders message
+      const visibleRows = document.querySelectorAll('.orders-table tbody tr[style=""]').length;
+      const noOrdersMessage = document.querySelector('.no-orders');
+      
+      if (noOrdersMessage) {
+        if (visibleRows === 0) {
+          noOrdersMessage.style.display = 'block';
+        } else {
+          noOrdersMessage.style.display = 'none';
+        }
+      }
+    }
+    
+    statusFilter.addEventListener('change', applyFilters);
+    customerFilter.addEventListener('change', applyFilters);
+    searchBtn.addEventListener('click', applyFilters);
+    searchInput.addEventListener('keyup', function(e) {
+      if (e.key === 'Enter') {
+        applyFilters();
+      }
+    });
+  });
+</script>
+{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<style>
+  .manage-orders-container {
+    max-width: 1200px;
+    margin: 30px auto;
+    padding: 0 20px;
+  }
+  
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+  
+  .page-header h1 {
+    margin: 0;
+    color: #2c3e50;
+  }
+  
+  .header-actions {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+  }
+  
+  .filter-controls {
+    display: flex;
+    gap: 10px;
+  }
+  
+  .search-box {
+    display: flex;
+    gap: 5px;
+  }
+  
+  .form-control {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+  }
+  
+  .orders-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+  }
+  
+  .stat-card {
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+  }
+  
+  .stat-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+  }
+  
+  .stat-icon.pending {
+    background-color: #fff3cd;
+    color: #856404;
+  }
+  
+  .stat-icon.processing {
+    background-color: #d1ecf1;
+    color: #0c5460;
+  }
+  
+  .stat-icon.shipped {
+    background-color: #cce5ff;
+    color: #004085;
+  }
+  
+  .stat-icon.completed {
+    background-color: #d4edda;
+    color: #155724;
+  }
+  
+  .stat-content {
+    flex: 1;
+  }
+  
+  .stat-value {
+    font-size: 24px;
+    font-weight: bold;
+    color: #2c3e50;
+  }
+  
+  .stat-label {
+    color: #7f8c8d;
+    font-size: 14px;
+  }
+  
+  .orders-table-container {
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    overflow: hidden;
+    margin-bottom: 30px;
+  }
+  
+  .orders-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  
+  .orders-table th, .orders-table td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .orders-table th {
+    background-color: #f8f9fa;
+    color: #2c3e50;
+    font-weight: bold;
+  }
+  
+  .orders-table tbody tr:hover {
+    background-color: #f8f9fa;
+  }
+  
+  .status-badge {
+    display: inline-block;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 0.9rem;
+  }
+  
+  .status-badge.pending {
+    background-color: #fff3cd;
+    color: #856404;
+  }
+  
+  .status-badge.approved {
+    background-color: #d1ecf1;
+    color: #0c5460;
+  }
+  
+  .status-badge.processing {
+    background-color: #d4edda;
+    color: #155724;
+  }
+  
+  .status-badge.shipped {
+    background-color: #cce5ff;
+    color: #004085;
+  }
+  
+  .status-badge.delivered {
+    background-color: #d4edda;
+    color: #155724;
+  }
+  
+  .status-badge.cancelled {
+    background-color: #f8d7da;
+    color: #721c24;
+  }
+  
+  .actions-cell {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+  }
+  
+  .btn {
+    display: inline-block;
+    padding: 8px 15px;
+    border-radius: 4px;
+    text-decoration: none;
+    font-weight: bold;
+    cursor: pointer;
+    border: none;
+    transition: all 0.3s;
+  }
+  
+  .btn-sm {
+    padding: 5px 10px;
+    font-size: 0.85rem;
+  }
+  
+  .btn-outline-primary {
+    background-color: transparent;
+    color: #3498db;
+    border: 1px solid #3498db;
+  }
+  
+  .btn-success {
+    background-color: #2ecc71;
+    color: white;
+  }
+  
+  .btn-info {
+    background-color: #17a2b8;
+    color: white;
+  }
+  
+  .btn-primary {
+    background-color: #3498db;
+    color: white;
+  }
+  
+  .btn:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+  }
+  
+  .no-orders {
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    padding: 40px;
+    text-align: center;
+  }
+  
+  .no-data-message {
+    color: #7f8c8d;
+  }
+  
+  .no-data-message i {
+    font-size: 48px;
+    margin-bottom: 15px;
+    opacity: 0.5;
+  }
+  
+  .no-data-message p {
+    font-size: 18px;
+    margin: 0;
+  }
+  
+  @media (max-width: 992px) {
+    .orders-stats {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  
+  @media (max-width: 768px) {
+    .page-header {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    
+    .header-actions {
+      width: 100%;
+      flex-direction: column;
+    }
+    
+    .filter-controls {
+      width: 100%;
+    }
+    
+    .search-box {
+      width: 100%;
+    }
+    
+    .orders-stats {
+      grid-template-columns: 1fr;
+    }
+    
+    .orders-table-container {
+      overflow-x: auto;
+    }
+  }
+</style>
+{% endblock %}

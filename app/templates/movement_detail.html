@@ -1,0 +1,193 @@
+{% extends 'base.html' %}
+
+{% block title %}Movement Details | Chemical Traceability{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('dashboard_bp.dashboard') }}">Dashboard</a></li>
+                    {% if chemical %}
+                    <li class="breadcrumb-item"><a href="{{ url_for('dashboard_bp.chemical_detail', chemical_id=chemical.id) }}">{{ chemical.name }}</a></li>
+                    {% endif %}
+                    <li class="breadcrumb-item active">Movement Details</li>
+                </ol>
+            </nav>
+            <h1 class="mb-4">Movement Log Details</h1>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0">Movement Information</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-bordered">
+                        <tr>
+                            <th>Movement ID:</th>
+                            <td>{{ movement.id }}</td>
+                        </tr>
+                        <tr>
+                            <th>Status:</th>
+                            <td>
+                                <span class="badge {% if movement.status == 'in_transit' %}bg-warning{% elif movement.status == 'delivered' %}bg-success{% else %}bg-secondary{% endif %}">
+                                    {{ movement.status|title|replace('_', ' ') }}
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Tracking Number:</th>
+                            <td>{{ movement.tracking_number or 'N/A' }}</td>
+                        </tr>
+                        <tr>
+                            <th>Carrier:</th>
+                            <td>{{ movement.carrier or 'N/A' }}</td>
+                        </tr>
+                        <tr>
+                            <th>Timestamp:</th>
+                            <td>{{ movement.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+                        </tr>
+                        <tr>
+                            <th>Source:</th>
+                            <td>{{ source_org.name if source_org else 'Unknown' }}</td>
+                        </tr>
+                        <tr>
+                            <th>Source Location:</th>
+                            <td>{{ movement.source_location or 'N/A' }}</td>
+                        </tr>
+                        <tr>
+                            <th>Destination:</th>
+                            <td>{{ destination_org.name if destination_org else 'Unknown' }}</td>
+                        </tr>
+                        <tr>
+                            <th>Destination Location:</th>
+                            <td>{{ movement.destination_location or 'N/A' }}</td>
+                        </tr>
+                        {% if movement.temperature_controlled %}
+                        <tr>
+                            <th>Temperature Range:</th>
+                            <td>{{ movement.min_temperature }}°C to {{ movement.max_temperature }}°C</td>
+                        </tr>
+                        {% endif %}
+                        {% if movement.special_handling %}
+                        <tr>
+                            <th>Special Handling:</th>
+                            <td>{{ movement.handling_instructions }}</td>
+                        </tr>
+                        {% endif %}
+                        <tr>
+                            <th>Notes:</th>
+                            <td>{{ movement.remarks or 'None' }}</td>
+                        </tr>
+                        <tr>
+                            <th>Blockchain Recorded:</th>
+                            <td>
+                                {% if movement.blockchain_recorded %}
+                                <span class="badge bg-success">Yes</span>
+                                {% else %}
+                                <span class="badge bg-danger">No</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0">Chemical Information</h5>
+                </div>
+                <div class="card-body">
+                    {% if chemical %}
+                    <table class="table table-bordered">
+                        <tr>
+                            <th>Name:</th>
+                            <td>{{ chemical.name }}</td>
+                        </tr>
+                        <tr>
+                            <th>RFID Tag:</th>
+                            <td>{{ chemical.rfid_tag }}</td>
+                        </tr>
+                        <tr>
+                            <th>Batch Number:</th>
+                            <td>{{ chemical.batch_number }}</td>
+                        </tr>
+                        <tr>
+                            <th>Quantity:</th>
+                            <td>{{ chemical.quantity }} {{ chemical.unit }}</td>
+                        </tr>
+                        <tr>
+                            <th>CAS Number:</th>
+                            <td>{{ chemical.cas_number }}</td>
+                        </tr>
+                        <tr>
+                            <th>Hazard Class:</th>
+                            <td>{{ chemical.hazard_class }}</td>
+                        </tr>
+                        <tr>
+                            <th>Current Location:</th>
+                            <td>{{ chemical.current_location }}</td>
+                        </tr>
+                    </table>
+                    {% else %}
+                    <div class="alert alert-warning">
+                        Chemical information not available.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0">Audit Trail</h5>
+                </div>
+                <div class="card-body">
+                    {% if audit_logs %}
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Action</th>
+                                <th>User</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in audit_logs %}
+                            <tr>
+                                <td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td>{{ log.action_type|replace('_', ' ')|title }}</td>
+                                <td>{{ log.user.username if log.user else 'System' }}</td>
+                                <td>{{ log.description }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <div class="alert alert-info">
+                        No audit logs available for this movement.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-4">
+        <a href="{{ url_for('dashboard_bp.dashboard') }}" class="btn btn-primary">Back to Dashboard</a>
+        {% if chemical %}
+        <a href="{{ url_for('dashboard_bp.chemical_detail', chemical_id=chemical.id) }}" class="btn btn-secondary">Back to Chemical Details</a>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,10 +1,13 @@
 from flask import Blueprint, request, jsonify, redirect, url_for, current_app
 from flask_login import current_user, login_required
-from app.models import Chemical, MovementLog
+from app.models import MovementLog, Chemical
 from app.extensions import db
 from datetime import datetime, timedelta
 import traceback  # Add traceback for better error reporting
 import os  # Add os for environment variable access
+
+# Create the blueprint
+main = Blueprint('main', __name__)
 
 # Function to directly get blockchain history when using the original client
 def get_blockchain_history_direct(client, rfid_tag):
@@ -149,12 +152,27 @@ def validate_movement(data):
             'reason': f"Validation error: {str(e)}"
         }
 
-main = Blueprint('main', __name__)
-
 @main.route('/register-chemical', methods=['POST'])
 @login_required
 def register_chemical():
-    data = request.get_json()
+    """Register a new chemical in the system"""
+    print("DEBUG: register_chemical route called")
+    print(f"DEBUG: Request content type: {request.content_type}")
+    print(f"DEBUG: Request method: {request.method}")
+    
+    # Get data from request
+    try:
+        data = request.get_json()
+        print(f"DEBUG: Received data: {data}")
+    except Exception as e:
+        print(f"DEBUG: Error parsing JSON: {str(e)}")
+        # Try to get form data instead
+        data = request.form.to_dict()
+        print(f"DEBUG: Form data: {data}")
+        
+        if not data:
+            print("DEBUG: No data found in request")
+            return jsonify({'error': 'No data provided'}), 400
     
     # Convert date strings to datetime objects
     expiry_date = None
@@ -190,12 +208,23 @@ def register_chemical():
     
     # Record on blockchain if client is available
     blockchain_result = None
+    print(f"DEBUG: Blockchain client available: {current_app.blockchain_client is not None}")
     if current_app.blockchain_client:
-        blockchain_result = current_app.blockchain_client.register_chemical(
-            data['rfid_tag'],
-            data['name'],
-            data.get('manufacturer', '')
-        )
+        print(f"DEBUG: Attempting to register chemical on blockchain: {data['rfid_tag']} - {data['name']}")
+        try:
+            # Get manufacturer name from the organization associated with the current user
+            manufacturer = current_user.organization.name if current_user.organization else "Unknown Manufacturer"
+            print(f"DEBUG: Using manufacturer: {manufacturer}")
+            
+            blockchain_result = current_app.blockchain_client.register_chemical(
+                data['rfid_tag'],
+                data['name'],
+                manufacturer
+            )
+            print(f"DEBUG: Blockchain registration result: {blockchain_result}")
+        except Exception as e:
+            print(f"DEBUG: Error registering on blockchain: {str(e)}")
+            blockchain_result = {'success': False, 'error': str(e)}
     
     response = {
         'message': 'Chemical registered successfully',
@@ -410,13 +439,37 @@ def blockchain_status():
             except Exception as reconnect_error:
                 print(f"DEBUG: Error during reconnect: {str(reconnect_error)}")
         
+        # Get a list of all chemicals in the database
+        chemicals = Chemical.query.all()
+        registered_chemicals = []
+        
+        # Check which chemicals are registered on the blockchain
+        if connected:
+            for chemical in chemicals:
+                try:
+                    # Check if this chemical is registered on the blockchain
+                    registration_result = current_app.blockchain_client.get_chemical_registration(chemical.rfid_tag)
+                    
+                    if registration_result.get('success') and registration_result.get('registered'):
+                        registered_chemicals.append({
+                            'id': chemical.id,
+                            'rfid_tag': chemical.rfid_tag,
+                            'name': chemical.name,
+                            'manufacturer': chemical.manufacturer_org.name if chemical.manufacturer_org else 'Unknown',
+                            'blockchain_status': 'REGISTERED',
+                            'movement_count': registration_result.get('movement_count', 0)
+                        })
+                except Exception as check_error:
+                    print(f"DEBUG: Error checking registration for {chemical.rfid_tag}: {str(check_error)}")
+        
         return jsonify({
             'status': 'enabled',
             'connected': connected,
             'contract_address': contract_address,
             'account_address': account_address,
             'provider': str(current_app.blockchain_client.w3.provider) if hasattr(current_app.blockchain_client, 'w3') else 'Unknown',
-            'chain_info': chain_info if connected else {}
+            'chain_info': chain_info if connected else {},
+            'registered_chemicals': registered_chemicals
         })
     except Exception as e:
         traceback.print_exc()  # Print full traceback to console
@@ -512,6 +565,11 @@ def blockchain_verification(tag_id):
                         else:
                             raise ConnectionError("Connection lost and no reconnect method available")
                     
+                    # First check if the chemical is registered on the blockchain
+                    print(f"DEBUG: Checking if chemical {tag_id} is registered on blockchain")
+                    chemical_registration = current_app.blockchain_client.get_chemical_registration(tag_id)
+                    print(f"DEBUG: Chemical registration result: {chemical_registration}")
+                    
                     # Get count of movement records
                     print(f"DEBUG: Calling getMovementHistoryCount for {tag_id}")
                     count = current_app.blockchain_client.contract.functions.getMovementHistoryCount(tag_id).call()
@@ -546,11 +604,22 @@ def blockchain_verification(tag_id):
                             'blockchain_verified': True
                         })
                     
-                    # Even if there are no records, consider this a success as long as we could query the blockchain
+                    # Even if there are no movement records, consider this a success as long as we could query the blockchain
+                    message = ''
+                    if chemical_registration.get('registered', False):
+                        message = f"Chemical registered on blockchain by {chemical_registration.get('manufacturer', 'Unknown')} at {chemical_registration.get('registration_time', 'Unknown time')}"
+                        if len(blockchain_history) == 0:
+                            message += ". No movement records found."
+                        else:
+                            message += f". Found {len(blockchain_history)} movement records."
+                    else:
+                        message = "Chemical not found on blockchain"
+                    
                     blockchain_result = {
                         'success': True,
                         'history': blockchain_history,
-                        'message': 'No blockchain records found' if len(blockchain_history) == 0 else 'Blockchain records retrieved successfully'
+                        'chemical_registration': chemical_registration,
+                        'message': message
                     }
                 except Exception as e:
                     print(f"DEBUG: Error during blockchain history retrieval: {str(e)}")
@@ -601,19 +670,28 @@ def blockchain_verification(tag_id):
                 return jsonify({
                     'success': True,
                     'blockchain_enabled': True,
-                    'blockchain_connected': True,
+                    'blockchain_connected': is_connected,
                     'history': local_history,
-                    'message': 'Blockchain verification completed successfully'
+                    'chemical_registration': blockchain_result.get('chemical_registration', {'registered': False}),
+                    'message': blockchain_result.get('message', 'Blockchain verification completed')
                 })
             else:
                 # Blockchain is connected but no records found - this is still a success
                 print("DEBUG: Blockchain is connected but no records found for this tag")
+                # Check if the chemical is registered based on the chemical_registration data
+                chemical_registration = blockchain_result.get('chemical_registration', {'registered': False})
+                is_registered = chemical_registration.get('registered', False)
+                
+                message = 'Chemical registered on blockchain' if is_registered else 'Chemical not yet registered on blockchain'
+                print(f"DEBUG: Final registration status: {is_registered}, message: {message}")
+                
                 return jsonify({
                     'success': True,
                     'blockchain_enabled': True,
                     'blockchain_connected': True,
                     'history': local_history,
-                    'message': 'Chemical not yet registered on blockchain'
+                    'chemical_registration': chemical_registration,
+                    'message': message
                 })
         else:
             # Blockchain fetch failed but we still have local history

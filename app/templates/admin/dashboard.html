@@ -75,10 +75,12 @@
           <td>
             {% if user.is_active %}
             <form action="{{ url_for('admin_bp.deactivate_user', user_id=user.id) }}" method="POST" style="display:inline;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit" class="btn btn-sm btn-warning">Deactivate</button>
             </form>
             {% else %}
             <form action="{{ url_for('admin_bp.activate_user', user_id=user.id) }}" method="POST" style="display:inline;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit" class="btn btn-sm btn-success">Activate</button>
             </form>
             {% endif %}

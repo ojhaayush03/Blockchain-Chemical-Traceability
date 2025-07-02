@@ -71,7 +71,7 @@
           </td>
           <td>
             {% if log.user %}
-              <a href="{{ url_for('auth_bp.view_profile', user_id=log.user.id) }}">{{ log.user.username }}</a>
+              <a href="{{ url_for('auth.view_profile', username=log.user.username) }}">{{ log.user.username }}</a>
             {% else %}
               System
             {% endif %}

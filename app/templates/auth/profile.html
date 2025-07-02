@@ -7,7 +7,6 @@
     <div class="profile-header">
         <h2>User Profile</h2>
         <div class="profile-actions">
-            <a href="{{ url_for('dashboard_bp.dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
             {% if current_user.is_admin %}
             <a href="{{ url_for('admin_bp.user_list') }}" class="btn btn-primary">Manage Users</a>
             {% endif %}

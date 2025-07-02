@@ -1,12 +1,11 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app
+from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_user, logout_user, login_required, current_user
-from werkzeug.security import generate_password_hash
+from werkzeug.security import generate_password_hash, check_password_hash
 from app.models import User, Organization, RoleType, AuditLog
 from app.extensions import db
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField, SelectField
-from wtforms.validators import DataRequired, Email, EqualTo, ValidationError
-import re
+from wtforms.validators import DataRequired, Email, EqualTo, ValidationError, Length
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -21,7 +20,8 @@ class RegistrationForm(FlaskForm):
     first_name = StringField('First Name', validators=[DataRequired()])
     last_name = StringField('Last Name', validators=[DataRequired()])
     password = PasswordField('Password', validators=[DataRequired()])
-    password2 = PasswordField('Confirm Password', validators=[DataRequired(), EqualTo('password')])
+    confirm_password = PasswordField('Confirm Password', validators=[DataRequired(), EqualTo('password')])
+    organization = SelectField('Organization', coerce=int)
     role = SelectField('Role', choices=[
         (RoleType.MANUFACTURER.name, 'Manufacturer'),
         (RoleType.DISTRIBUTOR.name, 'Distributor'),
@@ -50,6 +50,12 @@ class RegistrationForm(FlaskForm):
             raise ValidationError('Your organization does not have distributor permissions.')
         elif role == RoleType.CUSTOMER and not organization.can_receive:
             raise ValidationError('Your organization does not have customer permissions.')
+
+class ChangePasswordForm(FlaskForm):
+    current_password = PasswordField('Current Password', validators=[DataRequired()])
+    new_password = PasswordField('New Password', validators=[DataRequired(), Length(min=8)])
+    confirm_password = PasswordField('Confirm New Password', validators=[DataRequired(), EqualTo('new_password', message='Passwords must match')])
+    submit = SubmitField('Change Password')
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
@@ -87,6 +93,12 @@ def login():
         if not next_page or not next_page.startswith('/'):
             if user.is_admin:
                 next_page = url_for('admin_bp.admin_dashboard')
+            elif user.role == RoleType.CUSTOMER:
+                next_page = url_for('customer_bp.dashboard')
+            elif user.role == RoleType.DISTRIBUTOR:
+                next_page = url_for('distributor_bp.dashboard')  # Redirect to distributor dashboard
+            elif user.role == RoleType.MANUFACTURER:
+                next_page = url_for('manufacturer_bp.dashboard')  # Redirect to manufacturer dashboard
             else:
                 next_page = url_for('dashboard_bp.dashboard')
         
@@ -189,3 +201,38 @@ def view_profile(username):
         return redirect(url_for('dashboard_bp.dashboard'))
     
     return render_template('auth/profile.html', user=user)
+
+@auth_bp.route('/change-password', methods=['GET', 'POST'])
+@login_required
+def change_password():
+    form = ChangePasswordForm()
+    
+    if form.validate_on_submit():
+        user = current_user
+        
+        # Check if current password is correct
+        if not check_password_hash(user.password_hash, form.current_password.data):
+            flash('Current password is incorrect.', 'error')
+            return render_template('auth/change_password.html', form=form)
+        
+        # Update password
+        user.password_hash = generate_password_hash(form.new_password.data)
+        db.session.commit()
+        
+        # Create audit log
+        audit = AuditLog(
+            action_type='password_change',
+            user_id=user.id,
+            organization_id=user.organization_id,
+            object_type='User',
+            object_id=user.id,
+            description=f'Password changed for user {user.username}',
+            ip_address=request.remote_addr
+        )
+        db.session.add(audit)
+        db.session.commit()
+        
+        flash('Your password has been updated successfully.', 'success')
+        return redirect(url_for('auth.view_profile', username=user.username))
+    
+    return render_template('auth/change_password.html', form=form)

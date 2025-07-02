@@ -1,0 +1,194 @@
+{% extends 'base.html' %}
+
+{% block title %}Prepare Shipment | Chemical Traceability{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('manufacturer_bp.dashboard') }}">Manufacturer Dashboard</a></li>
+                    <li class="breadcrumb-item active">Prepare Shipment</li>
+                </ol>
+            </nav>
+            <h1 class="mb-4">Prepare Chemical for Shipment</h1>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0">Chemical Details</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-bordered">
+                        <tr>
+                            <th>Name:</th>
+                            <td>{{ chemical.name }}</td>
+                        </tr>
+                        <tr>
+                            <th>RFID Tag:</th>
+                            <td>{{ chemical.rfid_tag }}</td>
+                        </tr>
+                        <tr>
+                            <th>Batch Number:</th>
+                            <td>{{ chemical.batch_number }}</td>
+                        </tr>
+                        <tr>
+                            <th>Quantity:</th>
+                            <td>{{ chemical.quantity }} {{ chemical.unit }}</td>
+                        </tr>
+                        <tr>
+                            <th>CAS Number:</th>
+                            <td>{{ chemical.cas_number }}</td>
+                        </tr>
+                        <tr>
+                            <th>Hazard Class:</th>
+                            <td>{{ chemical.hazard_class }}</td>
+                        </tr>
+                        <tr>
+                            <th>Current Location:</th>
+                            <td>{{ chemical.current_location }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0">Shipment Details</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('manufacturer_bp.prepare_shipment', chemical_id=chemical.id) }}">
+                        {{ form.hidden_tag() }}
+                        
+                        <div class="form-group mb-3">
+                            <label for="carrier">Select Distributor:</label>
+                            {{ form.carrier(class="form-control") }}
+                            {% if form.carrier.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.carrier.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="tracking_number">Tracking Number:</label>
+                            {{ form.tracking_number(class="form-control") }}
+                            {% if form.tracking_number.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.tracking_number.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="estimated_delivery">Estimated Delivery Date:</label>
+                            {{ form.estimated_delivery(class="form-control", type="date") }}
+                            {% if form.estimated_delivery.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.estimated_delivery.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="form-check mb-3">
+                            {{ form.special_handling(class="form-check-input") }}
+                            <label class="form-check-label" for="special_handling">
+                                Requires Special Handling
+                            </label>
+                        </div>
+                        
+                        <div class="form-group mb-3 special-handling-section" style="display: none;">
+                            <label for="handling_instructions">Handling Instructions:</label>
+                            {{ form.handling_instructions(class="form-control") }}
+                        </div>
+                        
+                        <div class="form-check mb-3">
+                            {{ form.temperature_controlled(class="form-check-input") }}
+                            <label class="form-check-label" for="temperature_controlled">
+                                Temperature Controlled
+                            </label>
+                        </div>
+                        
+                        <div class="row temp-control-section" style="display: none;">
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="min_temperature">Min Temperature (°C):</label>
+                                    {{ form.min_temperature(class="form-control") }}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="max_temperature">Max Temperature (°C):</label>
+                                    {{ form.max_temperature(class="form-control") }}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="notes">Shipping Notes:</label>
+                            {{ form.notes(class="form-control") }}
+                        </div>
+                        
+                        <div class="form-check mb-3">
+                            {{ form.confirm_accuracy(class="form-check-input") }}
+                            <label class="form-check-label" for="confirm_accuracy">
+                                I confirm that all information is accurate
+                            </label>
+                            {% if form.confirm_accuracy.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.confirm_accuracy.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="form-group">
+                            {{ form.submit(class="btn btn-primary") }}
+                            <a href="{{ url_for('manufacturer_bp.dashboard') }}" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Toggle special handling instructions
+        const specialHandlingCheckbox = document.getElementById('special_handling');
+        const specialHandlingSection = document.querySelector('.special-handling-section');
+        
+        specialHandlingCheckbox.addEventListener('change', function() {
+            specialHandlingSection.style.display = this.checked ? 'block' : 'none';
+        });
+        
+        // Initial state
+        specialHandlingSection.style.display = specialHandlingCheckbox.checked ? 'block' : 'none';
+        
+        // Toggle temperature control fields
+        const tempControlCheckbox = document.getElementById('temperature_controlled');
+        const tempControlSection = document.querySelector('.temp-control-section');
+        
+        tempControlCheckbox.addEventListener('change', function() {
+            tempControlSection.style.display = this.checked ? 'block' : 'none';
+        });
+        
+        // Initial state
+        tempControlSection.style.display = tempControlCheckbox.checked ? 'block' : 'none';
+    });
+</script>
+{% endblock %}

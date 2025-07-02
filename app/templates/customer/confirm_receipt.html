@@ -1,0 +1,333 @@
+{% extends "base.html" %}
+
+{% block title %}Confirm Chemical Receipt{% endblock %}
+
+{% block content %}
+<div class="content-container">
+  <div class="header-with-actions">
+    <h2>Confirm Chemical Receipt</h2>
+    <div class="action-buttons">
+      <a href="{{ url_for('dashboard_bp.dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+    </div>
+  </div>
+  
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+      {% for category, message in messages %}
+      <div class="alert {{ category }}">{{ message }}</div>
+      {% endfor %}
+  {% endif %}
+  {% endwith %}
+  
+  <div class="form-container">
+    <div class="shipment-details">
+      <h3>Shipment Information</h3>
+      
+      <div class="info-row">
+        <div class="info-label">Movement ID:</div>
+        <div class="info-value">{{ movement.id }}</div>
+      </div>
+      
+      <div class="info-row">
+        <div class="info-label">Chemical:</div>
+        <div class="info-value">{{ movement.chemical.name }}</div>
+      </div>
+      
+      <div class="info-row">
+        <div class="info-label">RFID Tag:</div>
+        <div class="info-value">{{ movement.tag_id }}</div>
+      </div>
+      
+      <div class="info-row">
+        <div class="info-label">Expected Quantity:</div>
+        <div class="info-value">{{ movement.quantity_moved }} {{ movement.chemical.unit }}</div>
+      </div>
+      
+      <div class="info-row">
+        <div class="info-label">Shipped From:</div>
+        <div class="info-value">{{ movement.source_location }}</div>
+      </div>
+      
+      <div class="info-row">
+        <div class="info-label">Shipped By:</div>
+        <div class="info-value">{{ movement.moved_by_user.first_name }} {{ movement.moved_by_user.last_name }}</div>
+      </div>
+      
+      <div class="info-row">
+        <div class="info-label">Shipping Date:</div>
+        <div class="info-value">{{ movement.timestamp.strftime('%Y-%m-%d %H:%M') }}</div>
+      </div>
+    </div>
+    
+    <form method="POST" action="{{ url_for('customer_bp.confirm_receipt', movement_id=movement.id) }}">
+      {{ form.csrf_token }}
+      {{ form.movement_id(value=movement.id) }}
+      
+      <div class="form-section">
+        <h3>Confirm Receipt</h3>
+        
+        <div class="form-group">
+          {{ form.rfid_tag.label }}
+          {{ form.rfid_tag(class="form-control", placeholder="Scan or enter RFID tag to verify") }}
+          <div class="rfid-scanner-container">
+            <button type="button" id="scanRfidBtn" class="btn btn-info btn-sm">
+              <i class="fas fa-rss"></i> Scan RFID
+            </button>
+            <div id="scanStatus" class="scan-status"></div>
+          </div>
+          {% if form.rfid_tag.errors %}
+            <div class="error">
+              {% for error in form.rfid_tag.errors %}
+              <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="form-group">
+          {{ form.received_quantity.label }}
+          {{ form.received_quantity(class="form-control", value=movement.quantity_moved) }}
+          <small class="form-text text-muted">Enter the actual quantity received. If it differs by more than 2% from expected quantity, an anomaly will be recorded.</small>
+          {% if form.received_quantity.errors %}
+            <div class="error">
+              {% for error in form.received_quantity.errors %}
+              <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="form-group">
+          {{ form.receipt_notes.label }}
+          {{ form.receipt_notes(class="form-control", rows="3", placeholder="Enter any notes about the receipt") }}
+          {% if form.receipt_notes.errors %}
+            <div class="error">
+              {% for error in form.receipt_notes.errors %}
+              <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="form-group checkbox-group">
+          {{ form.confirm_quantity(class="form-check-input") }}
+          {{ form.confirm_quantity.label(class="form-check-label") }}
+          {% if form.confirm_quantity.errors %}
+            <div class="error">
+              {% for error in form.confirm_quantity.errors %}
+              <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="form-group checkbox-group">
+          {{ form.confirm_condition(class="form-check-input") }}
+          {{ form.confirm_condition.label(class="form-check-label") }}
+          {% if form.confirm_condition.errors %}
+            <div class="error">
+              {% for error in form.confirm_condition.errors %}
+              <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        
+        <div class="form-actions">
+          {{ form.submit(class="btn btn-success") }}
+          <a href="{{ url_for('dashboard_bp.dashboard') }}" class="btn btn-secondary">Cancel</a>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+  .content-container {
+    max-width: 900px;
+    margin: 30px auto;
+    padding: 0 20px;
+  }
+  
+  .header-with-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  
+  .form-container {
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    overflow: hidden;
+    margin-bottom: 30px;
+    padding: 25px;
+  }
+  
+  .shipment-details {
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .info-row {
+    display: flex;
+    margin-bottom: 10px;
+  }
+  
+  .info-label {
+    font-weight: 600;
+    width: 150px;
+    color: #555;
+  }
+  
+  .info-value {
+    flex: 1;
+  }
+  
+  .form-section h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #2c3e50;
+  }
+  
+  .form-group {
+    margin-bottom: 20px;
+  }
+  
+  .form-control {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 16px;
+  }
+  
+  .checkbox-group {
+    display: flex;
+    align-items: center;
+  }
+  
+  .checkbox-group input {
+    margin-right: 10px;
+  }
+  
+  .form-actions {
+    margin-top: 30px;
+  }
+  
+  .btn {
+    padding: 10px 20px;
+    border-radius: 4px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+  
+  .btn-success {
+    background-color: #27ae60;
+    color: white;
+    border: none;
+  }
+  
+  .btn-success:hover {
+    background-color: #2ecc71;
+  }
+  
+  .btn-secondary {
+    background-color: #7f8c8d;
+    color: white;
+    border: none;
+    margin-left: 10px;
+  }
+  
+  .btn-secondary:hover {
+    background-color: #95a5a6;
+  }
+  
+  .error {
+    color: #e74c3c;
+    font-size: 14px;
+    margin-top: 5px;
+  }
+  
+  .alert {
+    padding: 15px;
+    margin-bottom: 20px;
+    border-radius: 4px;
+  }
+  
+  .alert.success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+  }
+  
+  .alert.warning {
+    background-color: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeeba;
+  }
+  
+  .alert.error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+  }
+  
+  .alert.info {
+    background-color: #d1ecf1;
+    color: #0c5460;
+    border: 1px solid #bee5eb;
+  }
+</style>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // RFID scanning simulation
+    const scanRfidBtn = document.getElementById('scanRfidBtn');
+    const rfidTagInput = document.getElementById('rfid_tag');
+    const scanStatus = document.getElementById('scanStatus');
+    
+    if (scanRfidBtn) {
+      scanRfidBtn.addEventListener('click', function() {
+        scanStatus.textContent = 'Scanning...';
+        scanStatus.style.color = '#3498db';
+        
+        // Simulate RFID scanning with a delay
+        setTimeout(function() {
+          rfidTagInput.value = '{{ movement.tag_id }}';
+          scanStatus.textContent = 'Scan complete!';
+          scanStatus.style.color = '#27ae60';
+        }, 1500);
+      });
+    }
+    
+    // Add quantity validation
+    const receivedQuantityInput = document.getElementById('received_quantity');
+    const expectedQuantity = ({ movement,quantity_moved });
+    const errorMargin = 0.02; // 2%
+    
+    if (receivedQuantityInput) {
+      receivedQuantityInput.addEventListener('change', function() {
+        const receivedQuantity = parseFloat(this.value);
+        if (!isNaN(receivedQuantity)) {
+          const minAcceptable = expectedQuantity * (1 - errorMargin);
+          const maxAcceptable = expectedQuantity * (1 + errorMargin);
+          
+          if (receivedQuantity < minAcceptable || receivedQuantity > maxAcceptable) {
+            console.warn('Procedure flaw detected: Quantity discrepancy exceeds acceptable margin');
+            // Add visual indicator
+            this.style.backgroundColor = '#ffecec';
+            this.style.borderColor = '#e74c3c';
+          } else {
+            this.style.backgroundColor = '';
+            this.style.borderColor = '';
+          }
+        }
+      });
+    }
+  });
+</script>
+{% endblock %}

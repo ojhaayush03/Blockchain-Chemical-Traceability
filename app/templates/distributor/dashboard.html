@@ -1,0 +1,190 @@
+{% extends 'base.html' %}
+
+{% block title %}Distributor Dashboard{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+  <div class="dashboard-header">
+    <h1>Distributor Dashboard</h1>
+    <p>Welcome, {{ current_user.first_name }} {{ current_user.last_name }}</p>
+    <div class="dashboard-actions">
+      <a href="{{ url_for('distributor_bp.manage_orders') }}" class="btn btn-primary">
+        <i class="fas fa-clipboard-list"></i> Manage Orders
+      </a>
+      <a href="{{ url_for('distributor_bp.log_movement') }}" class="btn btn-outline-secondary">
+        <i class="fas fa-truck-moving"></i> Log Movement
+      </a>
+    </div>
+  </div>
+
+  <div class="dashboard-stats">
+    <div class="stat-card">
+      <div class="stat-icon">
+        <i class="fas fa-shopping-cart"></i>
+      </div>
+      <div class="stat-content">
+        <h3>{{ stats.pending_orders }}</h3>
+        <p>Pending Orders</p>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">
+        <i class="fas fa-box-open"></i>
+      </div>
+      <div class="stat-content">
+        <h3>{{ stats.processing_orders }}</h3>
+        <p>Processing</p>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">
+        <i class="fas fa-truck"></i>
+      </div>
+      <div class="stat-content">
+        <h3>{{ stats.shipped_orders }}</h3>
+        <p>Shipped</p>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">
+        <i class="fas fa-check-circle"></i>
+      </div>
+      <div class="stat-content">
+        <h3>{{ stats.completed_orders }}</h3>
+        <p>Completed</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="dashboard-content">
+    <div class="content-section">
+      <div class="section-header">
+        <h2>Customer Orders</h2>
+        <div class="section-actions">
+          <div class="filter-group">
+            <label for="orderFilter">Filter by:</label>
+            <select id="orderFilter" class="form-control">
+              <option value="all">All Orders</option>
+              <option value="pending">Pending Approval</option>
+              <option value="approved">Approved</option>
+              <option value="processing">Processing</option>
+              <option value="shipped">Shipped</option>
+              <option value="delivered">Delivered</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="order-list">
+        {% if orders %}
+          {% for order in orders %}
+          <div class="order-card" data-status="{{ order.status }}">
+            <div class="order-header">
+              <div class="order-title">
+                <h3>Order #{{ order.order_number }}</h3>
+                <span class="order-status {{ order.status }}">{{ order.status|title }}</span>
+              </div>
+              <div class="order-date">
+                <p>Ordered: {{ order.order_date.strftime('%Y-%m-%d') }}</p>
+                {% if order.required_by_date %}
+                <p>Required by: {{ order.required_by_date.strftime('%Y-%m-%d') }}</p>
+                {% endif %}
+              </div>
+            </div>
+            
+            <div class="order-summary">
+              <p><strong>Customer:</strong> {{ order.customer_org.name }}</p>
+              <p><strong>Items:</strong> {{ order.items|length }}</p>
+              <p><strong>Total:</strong> ${{ "%.2f"|format(order.total_amount) }}</p>
+            </div>
+            
+            <div class="order-actions">
+              <a href="{{ url_for('distributor_bp.view_order', order_id=order.id) }}" class="btn btn-outline-primary">View Details</a>
+              {% if order.status == 'pending' %}
+              <a href="{{ url_for('distributor_bp.approve_order', order_id=order.id) }}" class="btn btn-success">Approve</a>
+              {% elif order.status == 'approved' %}
+              <a href="{{ url_for('distributor_bp.process_order', order_id=order.id) }}" class="btn btn-outline-secondary">Process</a>
+              {% elif order.status == 'processing' %}
+              <a href="{{ url_for('distributor_bp.ship_order', order_id=order.id) }}" class="btn btn-outline-info">Ship</a>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="empty-state">
+            <div class="empty-icon">
+              <i class="fas fa-clipboard-list"></i>
+            </div>
+            <h3>No Orders to Process</h3>
+            <p>There are no customer orders requiring your attention at this time.</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="content-section">
+      <div class="section-header">
+        <h2>Recent Movements</h2>
+      </div>
+
+      <div class="movement-list">
+        {% if movements %}
+          {% for movement in movements %}
+          <div class="movement-card">
+            <div class="movement-header">
+              <h3>{{ movement.chemical.name }}</h3>
+              <span class="movement-date">{{ movement.timestamp.strftime('%Y-%m-%d') }}</span>
+            </div>
+            <div class="movement-details">
+              <p><strong>From:</strong> {{ movement.source_org.name }}</p>
+              <p><strong>To:</strong> {{ movement.destination_org.name }}</p>
+              <p><strong>Status:</strong> 
+                <span class="badge bg-{{ 'success' if movement.status == 'delivered' else 'warning' }}">
+                  {{ movement.status|title }}
+                </span>
+              </p>
+            </div>
+            <div class="movement-actions">
+              <a href="{{ url_for('dashboard_bp.movement_detail', movement_id=movement.id) }}" class="btn btn-sm btn-outline-primary">View Details</a>
+              {% if movement.status == 'in_transit' %}
+              <a href="{{ url_for('distributor_bp.update_movement', movement_id=movement.id) }}" class="btn btn-sm btn-outline-info">Update Status</a>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="empty-state">
+            <div class="empty-icon">
+              <i class="fas fa-truck-moving"></i>
+            </div>
+            <h3>No Recent Movements</h3>
+            <p>No chemical movements have been logged recently.</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const filterSelect = document.getElementById('orderFilter');
+    const orderCards = document.querySelectorAll('.order-card');
+    
+    filterSelect.addEventListener('change', function() {
+      const selectedValue = this.value;
+      
+      orderCards.forEach(card => {
+        const status = card.getAttribute('data-status');
+        
+        if (selectedValue === 'all' || selectedValue === status) {
+          card.style.display = 'block';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    });
+  });
+</script>
+{% endblock %}

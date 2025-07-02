@@ -196,6 +196,17 @@
             margin-top: 0.25rem;
             font-size: 0.875rem;
         }
+        
+        .dashboard-btn {
+            background-color: rgba(255, 255, 255, 0.15);
+            border-radius: 4px;
+            margin-right: 10px;
+            font-weight: bold;
+        }
+        
+        .dashboard-btn:hover {
+            background-color: rgba(255, 255, 255, 0.25);
+        }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
@@ -206,22 +217,27 @@
             {% if current_user.is_authenticated %}
                 
                 {% if current_user.role.name == 'ADMIN' %}
-                <a href="{{ url_for('admin_bp.admin_dashboard') }}"><strong>Admin Dashboard</strong></a>
+                <a href="{{ url_for('admin_bp.admin_dashboard') }}" class="dashboard-btn"><strong>Admin Dashboard</strong></a>
                 <a href="{{ url_for('admin_bp.organization_list') }}">Organizations</a>
                 <a href="{{ url_for('admin_bp.user_list') }}">Users</a>
                 <a href="{{ url_for('admin_bp.view_anomalies') }}">Anomalies</a>
                 {% endif %}
                 
                 {% if current_user.role.name == 'MANUFACTURER' %}
-                <a href="#">Register Chemical</a>
+                <a href="{{ url_for('manufacturer_bp.dashboard') }}" class="dashboard-btn"><strong>Manufacturer Dashboard</strong></a>
+                <a href="{{ url_for('manufacturer_bp.register_chemical') }}">Register Chemical</a>
                 {% endif %}
                 
-                {% if current_user.role.name == 'DISTRIBUTOR' or current_user.is_admin %}
-                <a href="#">Movement Logs</a>
+                {% if current_user.role.name == 'DISTRIBUTOR' %}
+                <a href="{{ url_for('distributor_bp.dashboard') }}" class="dashboard-btn"><strong>Distributor Dashboard</strong></a>
+                <a href="{{ url_for('distributor_bp.manage_orders') }}">Manage Orders</a>
+                <a href="{{ url_for('distributor_bp.view_movements') }}">Movement Logs</a>
                 {% endif %}
                 
-                {% if current_user.role.name == 'CUSTOMER' or current_user.is_admin %}
-                <a href="#">Receipts</a>
+                {% if current_user.role.name == 'CUSTOMER' %}
+                <a href="{{ url_for('customer_bp.dashboard') }}" class="dashboard-btn"><strong>Customer Dashboard</strong></a>
+                <a href="{{ url_for('customer_bp.place_order') }}">Place Order</a>
+                <a href="{{ url_for('customer_bp.view_order') }}">My Orders</a>
                 {% endif %}
                 
                 <div class="user-menu">

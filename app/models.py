@@ -221,6 +221,77 @@ class AuditLog(db.Model):
         return f"<AuditLog {self.id}: {self.action_type} by {self.user.username}>"
 
 
+# Customer Order model for chemical requests
+class ChemicalOrder(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    order_number = db.Column(db.String(50), unique=True, nullable=False)
+    customer_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    customer_org_id = db.Column(db.Integer, db.ForeignKey('organization.id'), nullable=False)
+    order_date = db.Column(db.DateTime, default=datetime.utcnow)
+    required_by_date = db.Column(db.Date, nullable=True)
+    delivery_address = db.Column(db.Text, nullable=False)
+    special_instructions = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(20), default='pending')  # pending, approved, processing, shipped, delivered, cancelled
+    
+    # Approval fields
+    approved_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    approved_at = db.Column(db.DateTime, nullable=True)
+    
+    # Processing fields
+    processed_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    processed_at = db.Column(db.DateTime, nullable=True)
+    
+    # Shipping fields
+    shipped_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    shipped_at = db.Column(db.DateTime, nullable=True)
+    tracking_number = db.Column(db.String(100), nullable=True)
+    carrier = db.Column(db.String(50), nullable=True)
+    estimated_delivery = db.Column(db.Date, nullable=True)
+    
+    # Delivery fields
+    delivered_at = db.Column(db.DateTime, nullable=True)
+    received_by = db.Column(db.String(100), nullable=True)
+    
+    total_amount = db.Column(db.Float, default=0.0)
+    
+    # Relationships
+    customer = db.relationship('User', foreign_keys=[customer_id], backref='orders_placed')
+    customer_org = db.relationship('Organization', backref='orders')
+    approver = db.relationship('User', foreign_keys=[approved_by], backref='orders_approved', uselist=False)
+    processor = db.relationship('User', foreign_keys=[processed_by], backref='orders_processed', uselist=False)
+    shipper = db.relationship('User', foreign_keys=[shipped_by], backref='orders_shipped', uselist=False)
+    items = db.relationship('OrderItem', backref='order', cascade='all, delete-orphan')
+    
+    def __repr__(self):
+        return f"<ChemicalOrder #{self.order_number}>"
+    
+    def calculate_total(self):
+        """Calculate the total amount for the order based on items"""
+        self.total_amount = sum(item.quantity * item.unit_price for item in self.items)
+        return self.total_amount
+
+# Order Item model for individual chemicals in an order
+class OrderItem(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    order_id = db.Column(db.Integer, db.ForeignKey('chemical_order.id'), nullable=False)
+    chemical_name = db.Column(db.String(80), nullable=False)
+    chemical_id = db.Column(db.Integer, db.ForeignKey('chemical.id'), nullable=True)  # Nullable if chemical not yet created
+    assigned_chemical_id = db.Column(db.Integer, db.ForeignKey('chemical.id'), nullable=True)  # Chemical assigned for fulfillment
+    quantity = db.Column(db.Float, nullable=False)
+    unit = db.Column(db.String(20), nullable=False)
+    unit_price = db.Column(db.Float, default=0.0)
+    special_requirements = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(20), default='pending')  # pending, fulfilled, cancelled
+    movement_log_id = db.Column(db.Integer, db.ForeignKey('movement_log.id'), nullable=True)  # Link to shipment
+    
+    # Relationships
+    chemical = db.relationship('Chemical', foreign_keys=[chemical_id], backref='order_items')
+    assigned_chemical = db.relationship('Chemical', foreign_keys=[assigned_chemical_id], backref='assigned_to_orders')
+    movement_log = db.relationship('MovementLog', backref='order_item')
+    
+    def __repr__(self):
+        return f"<OrderItem {self.chemical_name} ({self.quantity} {self.unit})>"
+
 # Blockchain Anomaly Detection record
 class BlockchainAnomaly(db.Model):
     id = db.Column(db.Integer, primary_key=True)

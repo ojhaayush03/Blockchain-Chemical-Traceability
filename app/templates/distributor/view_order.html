@@ -1,0 +1,630 @@
+{% extends 'base.html' %}
+
+{% block title %}Order #{{ order.order_number }} Details{% endblock %}
+
+{% block content %}
+<div class="view-order-container">
+  <div class="page-header">
+    <h1>Order #{{ order.order_number }}</h1>
+    <div class="header-actions">
+      <a href="{{ url_for('distributor_bp.manage_orders') }}" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left"></i> Back to Orders
+      </a>
+      
+      {% if order.status == 'pending' %}
+      <a href="{{ url_for('distributor_bp.approve_order', order_id=order.id) }}" class="btn btn-success">
+        <i class="fas fa-check"></i> Approve Order
+      </a>
+      {% endif %}
+      
+      {% if order.status == 'approved' %}
+      <a href="{{ url_for('distributor_bp.process_order', order_id=order.id) }}" class="btn btn-info">
+        <i class="fas fa-cog"></i> Process Order
+      </a>
+      {% endif %}
+      
+      {% if order.status == 'processing' %}
+      <a href="{{ url_for('distributor_bp.ship_order', order_id=order.id) }}" class="btn btn-primary">
+        <i class="fas fa-truck"></i> Ship Order
+      </a>
+      {% endif %}
+    </div>
+  </div>
+  
+  <div class="order-summary-card">
+    <div class="card-header">
+      <h3>Order Summary</h3>
+      <span class="status-badge {{ order.status }}">{{ order.status|title }}</span>
+    </div>
+    <div class="card-body">
+      <div class="summary-grid">
+        <div class="summary-item">
+          <div class="summary-label">Customer:</div>
+          <div class="summary-value">{{ order.customer_organization.name }}</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Order Date:</div>
+          <div class="summary-value">{{ order.order_date.strftime('%Y-%m-%d %H:%M') }}</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Required By:</div>
+          <div class="summary-value">{{ order.required_by_date.strftime('%Y-%m-%d') if order.required_by_date else 'Not specified' }}</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Total Amount:</div>
+          <div class="summary-value">${{ "%.2f"|format(order.total_amount) }}</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Items:</div>
+          <div class="summary-value">{{ order.items|length }} chemical(s)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="order-items-card">
+    <h3>Order Items</h3>
+    <div class="table-responsive">
+      <table class="items-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Chemical</th>
+            <th>CAS Number</th>
+            <th>Quantity</th>
+            <th>Unit Price</th>
+            <th>Total</th>
+            <th>Status</th>
+            <th>Assigned Chemical</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in order.items %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td>
+              <div class="chemical-name">{{ item.chemical_name }}</div>
+              {% if item.special_requirements %}
+              <div class="special-requirements">Note: {{ item.special_requirements }}</div>
+              {% endif %}
+            </td>
+            <td>{{ item.chemical_cas or 'N/A' }}</td>
+            <td>{{ item.quantity }} {{ item.unit }}</td>
+            <td>${{ "%.2f"|format(item.unit_price) }}</td>
+            <td>${{ "%.2f"|format(item.quantity * item.unit_price) }}</td>
+            <td>
+              {% if order.status == 'pending' %}
+              <span class="status-pill pending">Pending</span>
+              {% elif order.status == 'approved' %}
+              <span class="status-pill approved">Approved</span>
+              {% elif order.status == 'processing' %}
+              <span class="status-pill processing">Processing</span>
+              {% elif order.status == 'shipped' %}
+              <span class="status-pill shipped">Shipped</span>
+              {% elif order.status == 'delivered' %}
+              <span class="status-pill delivered">Delivered</span>
+              {% elif order.status == 'cancelled' %}
+              <span class="status-pill cancelled">Cancelled</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if order.metadata and order.metadata.get('chemical_assignments') and order.metadata.get('chemical_assignments').get(item.id|string) %}
+                {% set chemical_id = order.metadata.get('chemical_assignments').get(item.id|string) %}
+                {% set chemical = chemical_id|int|get_chemical_by_id %}
+                {% if chemical %}
+                  <div class="assigned-chemical">
+                    <div>{{ chemical.name }}</div>
+                    <div class="batch-info">Batch: {{ chemical.batch_number }}</div>
+                    <div class="rfid-info">RFID: {{ chemical.rfid_tag }}</div>
+                  </div>
+                {% else %}
+                  <span class="text-muted">Chemical not found</span>
+                {% endif %}
+              {% else %}
+                <span class="text-muted">Not assigned</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="5" class="text-right"><strong>Total:</strong></td>
+            <td colspan="3"><strong>${{ "%.2f"|format(order.total_amount) }}</strong></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+  
+  <div class="delivery-info-card">
+    <h3>Delivery Information</h3>
+    <div class="info-content">
+      <div class="info-row">
+        <div class="info-label">Delivery Address:</div>
+        <div class="info-value">{{ order.delivery_address }}</div>
+      </div>
+      {% if order.special_instructions %}
+      <div class="info-row">
+        <div class="info-label">Special Instructions:</div>
+        <div class="info-value">{{ order.special_instructions }}</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  
+  <div class="order-timeline-card">
+    <h3>Order Timeline</h3>
+    <div class="timeline">
+      <div class="timeline-item {% if order.status != 'cancelled' %}active{% endif %}">
+        <div class="timeline-icon">
+          <i class="fas fa-clipboard-check"></i>
+        </div>
+        <div class="timeline-content">
+          <h4>Order Placed</h4>
+          <p>{{ order.order_date.strftime('%Y-%m-%d %H:%M') }}</p>
+          <p class="timeline-user">By {{ order.customer_organization.name }}</p>
+        </div>
+      </div>
+      
+      <div class="timeline-item {% if order.status in ['approved', 'processing', 'shipped', 'delivered'] %}active{% endif %}">
+        <div class="timeline-icon">
+          <i class="fas fa-check"></i>
+        </div>
+        <div class="timeline-content">
+          <h4>Order Approved</h4>
+          {% if order.approved_date %}
+          <p>{{ order.approved_date.strftime('%Y-%m-%d %H:%M') }}</p>
+          <p class="timeline-user">By {{ order.approved_by_user.email if order.approved_by_user else 'System' }}</p>
+          {% else %}
+          <p class="pending">Pending</p>
+          {% endif %}
+        </div>
+      </div>
+      
+      <div class="timeline-item {% if order.status in ['processing', 'shipped', 'delivered'] %}active{% endif %}">
+        <div class="timeline-icon">
+          <i class="fas fa-cog"></i>
+        </div>
+        <div class="timeline-content">
+          <h4>Processing</h4>
+          {% if order.processing_date %}
+          <p>{{ order.processing_date.strftime('%Y-%m-%d %H:%M') }}</p>
+          <p class="timeline-user">By {{ order.processed_by_user.email if order.processed_by_user else 'System' }}</p>
+          {% else %}
+          <p class="pending">Pending</p>
+          {% endif %}
+        </div>
+      </div>
+      
+      <div class="timeline-item {% if order.status in ['shipped', 'delivered'] %}active{% endif %}">
+        <div class="timeline-icon">
+          <i class="fas fa-truck"></i>
+        </div>
+        <div class="timeline-content">
+          <h4>Shipped</h4>
+          {% if order.shipped_date %}
+          <p>{{ order.shipped_date.strftime('%Y-%m-%d %H:%M') }}</p>
+          <p class="timeline-user">By {{ order.shipped_by_user.email if order.shipped_by_user else 'System' }}</p>
+          {% if order.metadata and order.metadata.shipping %}
+          <p class="tracking-info">Tracking: {{ order.metadata.shipping.tracking_number }} ({{ order.metadata.shipping.carrier|title }})</p>
+          {% endif %}
+          {% else %}
+          <p class="pending">Pending</p>
+          {% endif %}
+        </div>
+      </div>
+      
+      <div class="timeline-item {% if order.status == 'delivered' %}active{% endif %}">
+        <div class="timeline-icon">
+          <i class="fas fa-box-open"></i>
+        </div>
+        <div class="timeline-content">
+          <h4>Delivered</h4>
+          {% if order.delivered_date %}
+          <p>{{ order.delivered_date.strftime('%Y-%m-%d %H:%M') }}</p>
+          <p class="timeline-user">Confirmed by {{ order.customer_organization.name }}</p>
+          {% else %}
+          <p class="pending">Pending</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<style>
+  .view-order-container {
+    max-width: 1000px;
+    margin: 30px auto;
+    padding: 0 20px;
+  }
+  
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+  }
+  
+  .page-header h1 {
+    margin: 0;
+    color: #2c3e50;
+  }
+  
+  .header-actions {
+    display: flex;
+    gap: 10px;
+  }
+  
+  .order-summary-card, .order-items-card, .delivery-info-card, .order-timeline-card {
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    margin-bottom: 30px;
+    overflow: hidden;
+  }
+  
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .card-header h3 {
+    margin: 0;
+    color: #2c3e50;
+  }
+  
+  .card-body {
+    padding: 20px;
+  }
+  
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+  }
+  
+  .summary-item {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .summary-label {
+    font-weight: bold;
+    color: #6c757d;
+    margin-bottom: 5px;
+  }
+  
+  .summary-value {
+    color: #2c3e50;
+  }
+  
+  .status-badge {
+    display: inline-block;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 0.9rem;
+  }
+  
+  .status-badge.pending {
+    background-color: #fff3cd;
+    color: #856404;
+  }
+  
+  .status-badge.approved {
+    background-color: #d1ecf1;
+    color: #0c5460;
+  }
+  
+  .status-badge.processing {
+    background-color: #d4edda;
+    color: #155724;
+  }
+  
+  .status-badge.shipped {
+    background-color: #cce5ff;
+    color: #004085;
+  }
+  
+  .status-badge.delivered {
+    background-color: #d1e7dd;
+    color: #0f5132;
+  }
+  
+  .status-badge.cancelled {
+    background-color: #f8d7da;
+    color: #721c24;
+  }
+  
+  .order-items-card h3, .delivery-info-card h3, .order-timeline-card h3 {
+    padding: 15px 20px;
+    margin: 0;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #eee;
+    color: #2c3e50;
+  }
+  
+  .table-responsive {
+    overflow-x: auto;
+  }
+  
+  .items-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  
+  .items-table th, .items-table td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .items-table th {
+    background-color: #f8f9fa;
+    color: #2c3e50;
+    font-weight: bold;
+  }
+  
+  .items-table tfoot td {
+    background-color: #f8f9fa;
+    font-weight: bold;
+  }
+  
+  .chemical-name {
+    font-weight: bold;
+    color: #2c3e50;
+  }
+  
+  .special-requirements {
+    font-size: 0.85rem;
+    color: #7f8c8d;
+    margin-top: 5px;
+    font-style: italic;
+  }
+  
+  .status-pill {
+    display: inline-block;
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: bold;
+  }
+  
+  .status-pill.pending {
+    background-color: #fff3cd;
+    color: #856404;
+  }
+  
+  .status-pill.approved {
+    background-color: #d1ecf1;
+    color: #0c5460;
+  }
+  
+  .status-pill.processing {
+    background-color: #d4edda;
+    color: #155724;
+  }
+  
+  .status-pill.shipped {
+    background-color: #cce5ff;
+    color: #004085;
+  }
+  
+  .status-pill.delivered {
+    background-color: #d1e7dd;
+    color: #0f5132;
+  }
+  
+  .status-pill.cancelled {
+    background-color: #f8d7da;
+    color: #721c24;
+  }
+  
+  .assigned-chemical {
+    font-weight: bold;
+  }
+  
+  .batch-info, .rfid-info {
+    font-size: 0.85rem;
+    color: #7f8c8d;
+    margin-top: 3px;
+  }
+  
+  .text-muted {
+    color: #6c757d;
+  }
+  
+  .text-right {
+    text-align: right;
+  }
+  
+  .info-content {
+    padding: 20px;
+  }
+  
+  .info-row {
+    display: flex;
+    margin-bottom: 10px;
+  }
+  
+  .info-label {
+    width: 150px;
+    font-weight: bold;
+    color: #6c757d;
+  }
+  
+  .info-value {
+    flex: 1;
+    color: #2c3e50;
+  }
+  
+  .timeline {
+    position: relative;
+    padding: 20px;
+  }
+  
+  .timeline:before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 30px;
+    height: 100%;
+    width: 4px;
+    background: #e9ecef;
+  }
+  
+  .timeline-item {
+    position: relative;
+    margin-bottom: 30px;
+    padding-left: 70px;
+    opacity: 0.5;
+  }
+  
+  .timeline-item.active {
+    opacity: 1;
+  }
+  
+  .timeline-icon {
+    position: absolute;
+    left: 15px;
+    top: 0;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background-color: #e9ecef;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6c757d;
+  }
+  
+  .timeline-item.active .timeline-icon {
+    background-color: #3498db;
+    color: white;
+  }
+  
+  .timeline-content {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+  }
+  
+  .timeline-content h4 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    color: #2c3e50;
+  }
+  
+  .timeline-content p {
+    margin: 0 0 5px;
+    color: #2c3e50;
+  }
+  
+  .timeline-user {
+    font-size: 0.85rem;
+    color: #7f8c8d;
+  }
+  
+  .tracking-info {
+    margin-top: 5px;
+    padding: 5px 10px;
+    background-color: #e9ecef;
+    border-radius: 4px;
+    font-size: 0.9rem;
+  }
+  
+  .pending {
+    color: #6c757d;
+    font-style: italic;
+  }
+  
+  .btn {
+    display: inline-block;
+    padding: 8px 16px;
+    border-radius: 4px;
+    text-decoration: none;
+    font-weight: bold;
+    cursor: pointer;
+    border: none;
+    transition: all 0.3s;
+  }
+  
+  .btn-outline-secondary {
+    background-color: transparent;
+    color: #6c757d;
+    border: 1px solid #6c757d;
+  }
+  
+  .btn-success {
+    background-color: #28a745;
+    color: white;
+  }
+  
+  .btn-info {
+    background-color: #17a2b8;
+    color: white;
+  }
+  
+  .btn-primary {
+    background-color: #007bff;
+    color: white;
+  }
+  
+  .btn:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+  }
+  
+  @media (max-width: 768px) {
+    .page-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 15px;
+    }
+    
+    .header-actions {
+      flex-direction: column;
+      width: 100%;
+    }
+    
+    .btn {
+      width: 100%;
+      text-align: center;
+    }
+    
+    .summary-grid {
+      grid-template-columns: 1fr;
+    }
+    
+    .info-row {
+      flex-direction: column;
+    }
+    
+    .info-label {
+      width: 100%;
+      margin-bottom: 5px;
+    }
+    
+    .timeline:before {
+      left: 20px;
+    }
+    
+    .timeline-item {
+      padding-left: 50px;
+    }
+    
+    .timeline-icon {
+      left: 5px;
+    }
+  }
+</style>
+{% endblock %}

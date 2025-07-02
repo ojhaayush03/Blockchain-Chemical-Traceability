@@ -1,0 +1,449 @@
+{% extends 'base.html' %}
+
+{% block title %}Ship Order #{{ order.order_number }}{% endblock %}
+
+{% block content %}
+<div class="ship-order-container">
+  <div class="page-header">
+    <h1>Ship Order #{{ order.order_number }}</h1>
+    <a href="{{ url_for('distributor_bp.view_order', order_id=order.id) }}" class="btn btn-outline-secondary">
+      <i class="fas fa-arrow-left"></i> Back to Order Details
+    </a>
+  </div>
+  
+  <div class="order-summary-card">
+    <h3>Order Summary</h3>
+    <div class="summary-details">
+      <div class="summary-row">
+        <div class="summary-label">Order Number:</div>
+        <div class="summary-value">{{ order.order_number }}</div>
+      </div>
+      <div class="summary-row">
+        <div class="summary-label">Customer:</div>
+        <div class="summary-value">{{ order.customer_organization.name }}</div>
+      </div>
+      <div class="summary-row">
+        <div class="summary-label">Status:</div>
+        <div class="summary-value status-badge {{ order.status }}">{{ order.status|title }}</div>
+      </div>
+      <div class="summary-row">
+        <div class="summary-label">Required By:</div>
+        <div class="summary-value">{{ order.required_by_date.strftime('%Y-%m-%d') if order.required_by_date else 'Not specified' }}</div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="delivery-info-card">
+    <h3>Delivery Information</h3>
+    <div class="info-content">
+      <div class="info-row">
+        <div class="info-label">Delivery Address:</div>
+        <div class="info-value">{{ order.delivery_address }}</div>
+      </div>
+      {% if order.special_instructions %}
+      <div class="info-row">
+        <div class="info-label">Special Instructions:</div>
+        <div class="info-value">{{ order.special_instructions }}</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  
+  <div class="items-table-container">
+    <h3>Order Items</h3>
+    <table class="items-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Chemical Name</th>
+          <th>Quantity</th>
+          <th>Assigned Chemical</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in order.items %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>
+            <div class="chemical-name">{{ item.chemical_name }}</div>
+            {% if item.chemical_cas %}
+            <div class="chemical-cas">CAS: {{ item.chemical_cas }}</div>
+            {% endif %}
+          </td>
+          <td>{{ item.quantity }} {{ item.unit }}</td>
+          <td>
+            {% set chemical_id = order.metadata.get('chemical_assignments', {}).get(item.id|string) %}
+            {% if chemical_id %}
+              {% set chemical = chemical_id|int|get_chemical_by_id %}
+              {% if chemical %}
+                <div class="assigned-chemical">
+                  <div>{{ chemical.name }}</div>
+                  <div class="batch-info">Batch: {{ chemical.batch_number }}</div>
+                  <div class="rfid-info">RFID: {{ chemical.rfid_tag }}</div>
+                </div>
+              {% else %}
+                <span class="text-danger">Chemical not found</span>
+              {% endif %}
+            {% else %}
+              <span class="text-danger">No chemical assigned</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  
+  <div class="shipping-form-container">
+    <h3>Shipping Information</h3>
+    
+    <form method="POST" action="{{ url_for('distributor_bp.ship_order', order_id=order.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      
+      <div class="form-row">
+        <div class="form-group col-md-6">
+          <label for="tracking_number">Tracking Number:</label>
+          <input type="text" id="tracking_number" name="tracking_number" class="form-control" required>
+        </div>
+        
+        <div class="form-group col-md-6">
+          <label for="carrier">Carrier:</label>
+          <select id="carrier" name="carrier" class="form-control" required>
+            <option value="">-- Select Carrier --</option>
+            <option value="fedex">FedEx</option>
+            <option value="ups">UPS</option>
+            <option value="dhl">DHL</option>
+            <option value="usps">USPS</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+      </div>
+      
+      <div class="form-group">
+        <label for="estimated_delivery">Estimated Delivery Date:</label>
+        <input type="datetime-local" id="estimated_delivery" name="estimated_delivery" class="form-control" required>
+      </div>
+      
+      <div class="form-group">
+        <label for="shipping_notes">Shipping Notes (Optional):</label>
+        <textarea id="shipping_notes" name="shipping_notes" class="form-control" rows="3"></textarea>
+      </div>
+      
+      <div class="shipping-checklist">
+        <h4>Pre-Shipment Checklist</h4>
+        
+        <div class="form-check">
+          <input type="checkbox" id="check_packaging" name="check_packaging" class="form-check-input" required>
+          <label for="check_packaging" class="form-check-label">
+            All chemicals are properly packaged and labeled
+          </label>
+        </div>
+        
+        <div class="form-check">
+          <input type="checkbox" id="check_safety" name="check_safety" class="form-check-input" required>
+          <label for="check_safety" class="form-check-label">
+            Safety data sheets are included with the shipment
+          </label>
+        </div>
+        
+        <div class="form-check">
+          <input type="checkbox" id="check_temperature" name="check_temperature" class="form-check-input" required>
+          <label for="check_temperature" class="form-check-label">
+            Temperature control requirements (if any) are properly set up
+          </label>
+        </div>
+        
+        <div class="form-check">
+          <input type="checkbox" id="check_regulations" name="check_regulations" class="form-check-input" required>
+          <label for="check_regulations" class="form-check-label">
+            Shipment complies with all applicable regulations for chemical transport
+          </label>
+        </div>
+      </div>
+      
+      <div class="form-actions">
+        <a href="{{ url_for('distributor_bp.view_order', order_id=order.id) }}" class="btn btn-outline-secondary">
+          Cancel
+        </a>
+        <button type="submit" class="btn btn-primary">
+          <i class="fas fa-truck"></i> Ship Order
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<style>
+  .ship-order-container {
+    max-width: 900px;
+    margin: 30px auto;
+    padding: 0 20px;
+  }
+  
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+  }
+  
+  .page-header h1 {
+    margin: 0;
+    color: #2c3e50;
+  }
+  
+  .order-summary-card, .delivery-info-card, .items-table-container, .shipping-form-container {
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    padding: 20px;
+    margin-bottom: 30px;
+  }
+  
+  .order-summary-card h3, .delivery-info-card h3, .items-table-container h3, .shipping-form-container h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #2c3e50;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .summary-details {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 15px;
+  }
+  
+  .summary-row, .info-row {
+    display: flex;
+    margin-bottom: 10px;
+  }
+  
+  .summary-label, .info-label {
+    width: 120px;
+    font-weight: bold;
+    color: #6c757d;
+  }
+  
+  .summary-value, .info-value {
+    flex: 1;
+    color: #2c3e50;
+  }
+  
+  .status-badge {
+    display: inline-block;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 0.9rem;
+  }
+  
+  .status-badge.processing {
+    background-color: #d4edda;
+    color: #155724;
+  }
+  
+  .info-content {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .items-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  
+  .items-table th, .items-table td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .items-table th {
+    background-color: #f8f9fa;
+    color: #2c3e50;
+    font-weight: bold;
+  }
+  
+  .chemical-name {
+    font-weight: bold;
+    color: #2c3e50;
+  }
+  
+  .chemical-cas {
+    font-size: 0.85rem;
+    color: #7f8c8d;
+    margin-top: 5px;
+  }
+  
+  .assigned-chemical {
+    font-weight: bold;
+    color: #2c3e50;
+  }
+  
+  .batch-info, .rfid-info {
+    font-size: 0.85rem;
+    color: #7f8c8d;
+    margin-top: 3px;
+  }
+  
+  .form-row {
+    display: flex;
+    flex-wrap: wrap;
+    margin-right: -10px;
+    margin-left: -10px;
+  }
+  
+  .col-md-6 {
+    flex: 0 0 50%;
+    max-width: 50%;
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+  
+  .form-group {
+    margin-bottom: 20px;
+  }
+  
+  .form-control {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+  }
+  
+  .shipping-checklist {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+  }
+  
+  .shipping-checklist h4 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #2c3e50;
+  }
+  
+  .form-check {
+    margin-bottom: 10px;
+    display: flex;
+    align-items: flex-start;
+  }
+  
+  .form-check-input {
+    margin-right: 10px;
+    margin-top: 3px;
+  }
+  
+  .form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 30px;
+  }
+  
+  .btn {
+    display: inline-block;
+    padding: 10px 20px;
+    border-radius: 4px;
+    text-decoration: none;
+    font-weight: bold;
+    cursor: pointer;
+    border: none;
+    transition: all 0.3s;
+  }
+  
+  .btn-outline-secondary {
+    background-color: transparent;
+    color: #6c757d;
+    border: 1px solid #6c757d;
+  }
+  
+  .btn-primary {
+    background-color: #3498db;
+    color: white;
+  }
+  
+  .btn:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+  }
+  
+  .text-danger {
+    color: #dc3545;
+  }
+  
+  @media (max-width: 768px) {
+    .page-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 15px;
+    }
+    
+    .summary-details {
+      grid-template-columns: 1fr;
+    }
+    
+    .col-md-6 {
+      flex: 0 0 100%;
+      max-width: 100%;
+    }
+    
+    .form-actions {
+      flex-direction: column;
+    }
+    
+    .btn {
+      width: 100%;
+      margin-bottom: 10px;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Set default estimated delivery date to 3 business days from now
+    const today = new Date();
+    let deliveryDate = new Date();
+    deliveryDate.setDate(today.getDate() + 3);
+    
+    // Format date for datetime-local input
+    const year = deliveryDate.getFullYear();
+    const month = String(deliveryDate.getMonth() + 1).padStart(2, '0');
+    const day = String(deliveryDate.getDate()).padStart(2, '0');
+    const hours = String(deliveryDate.getHours()).padStart(2, '0');
+    const minutes = String(deliveryDate.getMinutes()).padStart(2, '0');
+    
+    document.getElementById('estimated_delivery').value = `${year}-${month}-${day}T${hours}:${minutes}`;
+    
+    // Form validation
+    const form = document.querySelector('form');
+    form.addEventListener('submit', function(event) {
+      const checkboxes = form.querySelectorAll('input[type="checkbox"][required]');
+      let allChecked = true;
+      
+      checkboxes.forEach(checkbox => {
+        if (!checkbox.checked) {
+          allChecked = false;
+          checkbox.classList.add('is-invalid');
+        } else {
+          checkbox.classList.remove('is-invalid');
+        }
+      });
+      
+      if (!allChecked) {
+        event.preventDefault();
+        alert('Please complete all items in the pre-shipment checklist before shipping.');
+      }
+    });
+  });
+</script>
+{% endblock %}

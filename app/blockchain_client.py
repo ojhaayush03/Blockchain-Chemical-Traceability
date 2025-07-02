@@ -112,12 +112,12 @@ class BlockchainClient:
             self.connected = False
             return False
     
-    def register_chemical(self, rfid_tag, name):
+    def register_chemical(self, rfid_tag, name, manufacturer):
         """Register a new chemical on the blockchain"""
         try:
             # Build transaction
             txn = self.contract.functions.registerChemical(
-                rfid_tag, name
+                rfid_tag, name, manufacturer
             ).build_transaction({
                 'from': self.account_address,
                 'nonce': self.w3.eth.get_transaction_count(self.account_address),
@@ -144,8 +144,6 @@ class BlockchainClient:
                 'error': str(e)
             }
     
-
-    
     def record_movement(self, rfid_tag, location, moved_by=None, purpose=None, status=None):
         """Record a chemical movement on the blockchain"""
         try:
@@ -170,7 +168,7 @@ class BlockchainClient:
             purpose = str(purpose or "")
             status = str(status or "")
             
-            print("DEBUG: Parameters for recordMovement:")
+            print(f"DEBUG: Parameters for recordMovement:")
             print(f"  - RFID Tag: {rfid_tag}")
             print(f"  - Location: {location}")
             print(f"  - Moved By: {moved_by}")
@@ -188,23 +186,25 @@ class BlockchainClient:
                 ).estimate_gas({
                     'from': self.account_address
                 })
-                
-                print(f"DEBUG: Gas estimate for transaction: {gas_estimate}")
-                
-                # Add 10% buffer to gas estimate
-                gas_with_buffer = int(gas_estimate * 1.1)
+                print(f"DEBUG: Gas estimate: {gas_estimate}")
             except Exception as e:
-                print(f"DEBUG: Gas estimation failed: {str(e)}")
-                # Use default gas limit if estimation fails
-                gas_with_buffer = 2000000
-                print(f"DEBUG: Using default gas limit: {gas_with_buffer}")
+                print(f"ERROR: Failed to estimate gas: {str(e)}")
+                traceback.print_exc()
+                raise
             
-            # Get current nonce
-            nonce = self.w3.eth.get_transaction_count(self.account_address)
-            print(f"DEBUG: Current nonce: {nonce}")
+            # Add 10% buffer to gas estimate
+            gas_limit = int(gas_estimate * 1.1)
+            print(f"DEBUG: Gas limit with buffer: {gas_limit}")
+            
+            # Get current gas price
+            gas_price = self.w3.eth.gas_price
+            print(f"DEBUG: Current gas price: {gas_price}")
             
             # Build transaction
             try:
+                nonce = self.w3.eth.get_transaction_count(self.account_address)
+                print(f"DEBUG: Current nonce: {nonce}")
+                
                 txn = self.contract.functions.recordMovement(
                     rfid_tag,
                     location,
@@ -214,8 +214,8 @@ class BlockchainClient:
                 ).build_transaction({
                     'from': self.account_address,
                     'nonce': nonce,
-                    'gas': gas_with_buffer,
-                    'gasPrice': self.w3.eth.gas_price,
+                    'gas': gas_limit,
+                    'gasPrice': gas_price,
                     'chainId': self.w3.eth.chain_id
                 })
                 print("DEBUG: Transaction built successfully")  # Simple string, no f-string needed
@@ -254,6 +254,78 @@ class BlockchainClient:
                 'success': False,
                 'error': str(e)
             }
+    
+    def get_chemical_registration(self, rfid_tag):
+        """Check if a chemical is registered on the blockchain by checking transaction history"""
+        try:
+            # Check if we're connected
+            if not self.is_connected():
+                print("DEBUG: Not connected to Ethereum network, attempting to reconnect")
+                # Try to reconnect
+                self.w3 = Web3(Web3.HTTPProvider(self.infura_url))
+                if not self.w3.is_connected():
+                    raise ConnectionError("Lost connection to Ethereum network and failed to reconnect")
+                print("DEBUG: Successfully reconnected to Ethereum network")
+                
+                # Reload contract after reconnection
+                self.contract = self.w3.eth.contract(address=self.contract_address, abi=self.contract.abi)
+            
+            # Since we don't have a direct getChemical function, we'll check if the chemical has been registered
+            # by looking for the transaction that registered it
+            print(f"DEBUG: Checking if chemical {rfid_tag} is registered on blockchain")
+            
+            # First, let's check if there's a transaction receipt for this chemical
+            # We can do this by getting the transaction events or checking the contract state
+            
+            # For now, we'll use a simpler approach - if we can get the movement history count without
+            # an error, the chemical exists in the contract
+            try:
+                # Try to get the movement history count - this should work if the chemical exists
+                count = self.contract.functions.getMovementHistoryCount(rfid_tag).call()
+                print(f"DEBUG: Chemical exists on blockchain with {count} movement records")
+                
+                # Since we know the chemical exists, we can look for the registration transaction
+                # in our local database or just return that it's registered
+                
+                # For now, just return that it's registered with basic info
+                return {
+                    'success': True,
+                    'registered': True,
+                    'transaction_hash': self.get_registration_tx_hash(rfid_tag),
+                    'movement_count': count
+                }
+            except Exception as e:
+                error_str = str(e).lower()
+                if "revert" in error_str or "invalid opcode" in error_str or "execution reverted" in error_str:
+                    # This likely means the chemical doesn't exist (contract reverted)
+                    print(f"DEBUG: Chemical {rfid_tag} not found on blockchain (contract revert)")
+                    return {
+                        'success': True,
+                        'registered': False,
+                        'error': 'Chemical not registered on blockchain'
+                    }
+                else:
+                    # Some other error occurred
+                    print(f"DEBUG: Error checking chemical registration: {str(e)}")
+                    return {
+                        'success': False,
+                        'error': str(e)
+                    }
+        except Exception as e:
+            print(f"DEBUG: Error in get_chemical_registration: {str(e)}")
+            import traceback
+            print(f"DEBUG: Traceback: {traceback.format_exc()}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def get_registration_tx_hash(self, rfid_tag):
+        """Get the transaction hash for the chemical registration (placeholder)"""
+        # In a real implementation, we would query the blockchain for the registration event
+        # or look it up in our local database
+        # For now, return a placeholder
+        return "0x..." # Placeholder
     
     def get_movement_history(self, rfid_tag):
         """Get the complete movement history for a chemical from blockchain"""

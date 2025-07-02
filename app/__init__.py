@@ -1,11 +1,16 @@
 from flask import Flask
 from app.extensions import db, login_manager, csrf
-from app.routes import dashboard_bp, main, auth_bp, admin_bp, distributor_bp, customer_bp  # <-- Import all blueprints from the `routes` package
+from app.routes import dashboard_bp, main, auth_bp, admin_bp, distributor_bp, customer_bp, manufacturer_bp  # <-- Import all blueprints from the `routes` package
 import os
 import json
 import traceback
 import time
 from web3 import Web3
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+print("Environment variables loaded from .env file")
 
 # Initialize Flask application factory
 
@@ -86,10 +91,10 @@ def create_app():
                             print("Using BlockchainClient implementation")
                             
                             # Verify that the client has the required methods
-                            if not hasattr(app.app.blockchain_client, 'record_movement'):
-                                print("DEBUG: Available methods:", dir(app.app.blockchain_client))
+                            if not hasattr(app.blockchain_client, 'record_movement'):
+                                print("DEBUG: Available methods:", dir(app.blockchain_client))
                                 raise AttributeError("BlockchainClient does not have record_movement method")
-                            if not hasattr(app.app.blockchain_client, 'get_movement_history'):
+                            if not hasattr(app.blockchain_client, 'get_movement_history'):
                                 raise AttributeError("BlockchainClient does not have get_movement_history method")
                         except Exception as client_error:
                             print(f"Error initializing BlockchainClient: {str(client_error)}")
@@ -102,7 +107,13 @@ def create_app():
                                 contract_abi
                             )
                         
-                        if app.blockchain_client.is_connected():
+                        # Check if blockchain client is connected and has required methods
+                        is_connected = app.blockchain_client.is_connected()
+                        print(f"DEBUG: Blockchain client connected: {is_connected}")
+                        print(f"DEBUG: Blockchain client type: {type(app.blockchain_client).__name__}")
+                        print(f"DEBUG: Blockchain client methods: {[m for m in dir(app.blockchain_client) if not m.startswith('_')]}")
+                        
+                        if is_connected:
                             print("Blockchain client initialized successfully and connected to Ethereum network")
                             app.logger.info("Blockchain client initialized successfully and connected to Ethereum network")
                         else:
@@ -153,5 +164,6 @@ def create_app():
     app.register_blueprint(admin_bp)  # Admin routes are already prefixed with '/admin' in the blueprint
     app.register_blueprint(distributor_bp)  # Distributor routes are prefixed with '/distributor' in the blueprint
     app.register_blueprint(customer_bp)  # Customer routes are prefixed with '/customer' in the blueprint
+    app.register_blueprint(manufacturer_bp)  # Manufacturer routes are prefixed with '/manufacturer' in the blueprint
 
     return app
