@@ -93,7 +93,7 @@
         {% for order in orders %}
         <tr data-status="{{ order.status }}" data-customer="{{ order.customer_org_id }}">
           <td>{{ order.order_number }}</td>
-          <td>{{ order.customer_organization.name }}</td>
+          <td>{{ order.customer_org.name }}</td>
           <td>{{ order.order_date.strftime('%Y-%m-%d') }}</td>
           <td>{{ order.required_by_date.strftime('%Y-%m-%d') if order.required_by_date else 'Not specified' }}</td>
           <td>{{ order.items|length }}</td>

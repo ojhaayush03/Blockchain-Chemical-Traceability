@@ -12,7 +12,7 @@
   <div class="order-form-container">
     <form method="POST" id="orderForm">
       {{ form.hidden_tag() }}
-      <input type="hidden" id="items_data" name="items_data" value="[]">
+      {{ form.items_data(id="items_data", value="[]") }}
       
       <div class="form-section">
         <h3>Order Information</h3>
@@ -28,7 +28,7 @@
                 {% endfor %}
               </div>
             {% endif %}
-            <small class="form-text text-muted">When do you need these chemicals by?</small>
+            <small class="form-text text-muted">When do you need these chemicals by? (Format: YYYY-MM-DD)</small>
           </div>
           
           <div class="form-group">
@@ -145,10 +145,15 @@
         </div>
         
         <div class="form-check">
-          <input class="form-check-input" type="checkbox" id="terms-check" required>
-          <label class="form-check-label" for="terms-check">
-            I confirm that I am authorized to order these chemicals and that all information provided is accurate.
-          </label>
+          {{ form.confirm_terms(class="form-check-input", id="terms-check") }}
+          {{ form.confirm_terms.label(class="form-check-label", for="terms-check") }}
+          {% if form.confirm_terms.errors %}
+            <div class="error-message">
+              {% for error in form.confirm_terms.errors %}
+                <span>{{ error }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
         </div>
         
         <div class="form-actions">
@@ -276,10 +281,13 @@
     
     // Form validation
     document.getElementById('orderForm').addEventListener('submit', function(e) {
+      console.log('Form submission started');
       const items = orderItems.querySelectorAll('.order-item');
+      console.log('Found ' + items.length + ' order items');
       
       if (items.length === 0) {
         e.preventDefault();
+        console.error('No items in order');
         alert('Please add at least one chemical to your order.');
         return false;
       }
@@ -289,6 +297,7 @@
       let itemsData = [];
       
       items.forEach((item, index) => {
+        console.log('Processing item ' + (index + 1));
         const chemicalSelect = item.querySelector('.chemical-select');
         const chemicalName = item.querySelector('.chemical-name');
         const quantity = item.querySelector('.item-quantity');
@@ -296,25 +305,32 @@
         const specialReqs = item.querySelector('textarea[name$="-special_requirements"]');
         const casNumber = item.querySelector('input[name$="-cas_number"]');
         
+        console.log('Chemical select value: ' + (chemicalSelect ? chemicalSelect.value : 'not found'));
+        console.log('Chemical name value: ' + (chemicalName ? chemicalName.value : 'not found'));
+        
         if (!chemicalSelect || !chemicalSelect.value) {
           valid = false;
+          console.error('Chemical selection is invalid');
           chemicalSelect.classList.add('is-invalid');
         } else {
           chemicalSelect.classList.remove('is-invalid');
           
           // Add item data for submission
-          itemsData.push({
+          const itemData = {
             chemical_id: chemicalSelect.value,
             chemical_name: chemicalName.value,
-            chemical_cas: casNumber ? casNumber.value : '',
+            // Removed chemical_cas as it's not in the OrderItem model
             quantity: quantity.value,
             unit: unit.value,
             special_requirements: specialReqs ? specialReqs.value : ''
-          });
+          };
+          console.log('Adding item data:', itemData);
+          itemsData.push(itemData);
         }
         
         if (!quantity.value || parseFloat(quantity.value) <= 0) {
           valid = false;
+          console.error('Quantity is invalid');
           quantity.classList.add('is-invalid');
         } else {
           quantity.classList.remove('is-invalid');
@@ -323,19 +339,27 @@
       
       if (!valid) {
         e.preventDefault();
+        console.error('Form validation failed');
         alert('Please fill in all required fields for each chemical.');
         return false;
       }
       
       // Add items data to hidden field
-      document.getElementById('items_data').value = JSON.stringify(itemsData);
+      const itemsDataJson = JSON.stringify(itemsData);
+      console.log('Items data JSON:', itemsDataJson);
+      document.getElementById('items_data').value = itemsDataJson;
       
       // Check terms checkbox
-      if (!document.getElementById('terms-check').checked) {
+      const termsCheck = document.getElementById('terms-check');
+      console.log('Terms checkbox checked:', termsCheck ? termsCheck.checked : 'not found');
+      if (!termsCheck || !termsCheck.checked) {
         e.preventDefault();
+        console.error('Terms not accepted');
         alert('Please confirm that you are authorized to order these chemicals.');
         return false;
       }
+      
+      console.log('Form validation successful, submitting form');
     });
   });
 </script>

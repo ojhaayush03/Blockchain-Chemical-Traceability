@@ -237,7 +237,7 @@
                 {% if current_user.role.name == 'CUSTOMER' %}
                 <a href="{{ url_for('customer_bp.dashboard') }}" class="dashboard-btn"><strong>Customer Dashboard</strong></a>
                 <a href="{{ url_for('customer_bp.place_order') }}">Place Order</a>
-                <a href="{{ url_for('customer_bp.view_order') }}">My Orders</a>
+                <a href="{{ url_for('customer_bp.dashboard') }}">My Orders</a>
                 {% endif %}
                 
                 <div class="user-menu">

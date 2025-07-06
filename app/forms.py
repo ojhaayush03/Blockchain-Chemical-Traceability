@@ -1,6 +1,6 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, BooleanField, SubmitField, SelectField, TextAreaField, FloatField, DateTimeField, HiddenField
-from flask_wtf.file import FileField
+from wtforms import StringField, PasswordField, BooleanField, SubmitField, TextAreaField, SelectField, FloatField, FileField, HiddenField
+from wtforms.fields import DateField, DateTimeField
 from wtforms.validators import DataRequired, Email, EqualTo, Length, ValidationError, Optional, Regexp
 from app.models import User, Organization
 
@@ -97,8 +97,8 @@ class ChemicalRegistrationForm(FlaskForm):
         ('explosive', 'Explosive')
     ], validators=[DataRequired()])
     batch_number = StringField('Batch Number', validators=[DataRequired(), Length(max=50)])
-    manufacturing_date = DateTimeField('Manufacturing Date', format='%Y-%m-%dT%H:%M', validators=[Optional()])
-    expiry_date = DateTimeField('Expiry Date', format='%Y-%m-%dT%H:%M', validators=[DataRequired()])
+    manufacturing_date = DateField('Manufacturing Date', format='%Y-%m-%d', validators=[Optional()])
+    expiry_date = DateField('Expiry Date', format='%Y-%m-%d', validators=[DataRequired()])
     quantity = FloatField('Quantity', validators=[DataRequired()])
     unit = SelectField('Unit', choices=[
         ('kg', 'Kilograms'),
@@ -200,7 +200,7 @@ class OrderItemForm(FlaskForm):
     special_requirements = TextAreaField('Special Requirements', validators=[Optional(), Length(max=200)])
 
 class OrderForm(FlaskForm):
-    required_by_date = DateTimeField('Required By Date', format='%Y-%m-%dT%H:%M', validators=[Optional()])
+    required_by_date = DateField('Required By Date', format='%Y-%m-%d', validators=[Optional()])
     delivery_address = TextAreaField('Delivery Address', validators=[DataRequired(), Length(max=500)])
     special_instructions = TextAreaField('Special Instructions', validators=[Optional(), Length(max=500)])
     items_data = HiddenField('Items Data', validators=[DataRequired()])

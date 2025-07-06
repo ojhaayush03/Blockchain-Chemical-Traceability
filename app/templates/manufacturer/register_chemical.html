@@ -7,7 +7,7 @@
   <div class="header-with-actions">
     <h2>Register New Chemical</h2>
     <div class="action-buttons">
-      <a href="{{ url_for('manufacturer_bp.dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+      <a href="{{ url_for('manufacturer_bp.register_chemical') }}" class="btn btn-secondary">Back to Dashboard</a>
     </div>
   </div>
   
@@ -89,7 +89,7 @@
         
         <div class="form-row">
           <div class="form-group half">
-            {{ form.manufacturing_date.label }} {{ form.manufacturing_date(class="form-control", type="date") }}
+            {{ form.manufacturing_date.label }} {{ form.manufacturing_date(class="form-control", type="date", placeholder="YYYY-MM-DD") }}
             {% if form.manufacturing_date.errors %}
               <div class="error">
                 {% for error in form.manufacturing_date.errors %}
@@ -100,7 +100,7 @@
           </div>
           
           <div class="form-group half">
-            {{ form.expiry_date.label }} {{ form.expiry_date(class="form-control", type="date") }}
+            {{ form.expiry_date.label }} {{ form.expiry_date(class="form-control", type="date", placeholder="YYYY-MM-DD") }}
             {% if form.expiry_date.errors %}
               <div class="error">
                 {% for error in form.expiry_date.errors %}

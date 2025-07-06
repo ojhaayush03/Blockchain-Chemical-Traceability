@@ -20,7 +20,7 @@
       </div>
       <div class="summary-row">
         <div class="summary-label">Customer:</div>
-        <div class="summary-value">{{ order.customer_organization.name }}</div>
+        <div class="summary-value">{{ order.customer_org.name }}</div>
       </div>
       <div class="summary-row">
         <div class="summary-label">Order Date:</div>
@@ -56,8 +56,8 @@
           <td>{{ loop.index }}</td>
           <td>
             <div class="chemical-name">{{ item.chemical_name }}</div>
-            {% if item.chemical_cas %}
-            <div class="chemical-cas">CAS: {{ item.chemical_cas }}</div>
+            {% if item.chemical and item.chemical.cas_number %}
+            <div class="chemical-cas">CAS: {{ item.chemical.cas_number }}</div>
             {% endif %}
           </td>
           <td>{{ item.quantity }} {{ item.unit }}</td>

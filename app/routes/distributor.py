@@ -205,7 +205,13 @@ def ship_order(order_id):
         order.tracking_number = tracking_number
         order.carrier = carrier
         if estimated_delivery:
-            order.estimated_delivery = datetime.strptime(estimated_delivery, '%Y-%m-%d')
+            # Handle datetime-local format which includes time component
+            try:
+                # Try to parse with datetime format first
+                order.estimated_delivery = datetime.strptime(estimated_delivery, '%Y-%m-%dT%H:%M')
+            except ValueError:
+                # Fall back to date-only format
+                order.estimated_delivery = datetime.strptime(estimated_delivery.split('T')[0], '%Y-%m-%d')
         
         # Create movement logs for each chemical
         for item in order.items:
@@ -225,13 +231,13 @@ def ship_order(order_id):
                 tag_id=chemical.rfid_tag,
                 location='In Transit',
                 timestamp=datetime.utcnow(),
-                purpose=f'Order shipment #{order.order_number}',
+                purpose=f'Order shipment #{order.order_number} (Tracking: {tracking_number}, Carrier: {carrier})',
                 status='in_transit',
                 source_location='Storage',
                 source_org_id=current_user.organization_id,
                 destination_org_id=order.customer_org_id,
-                tracking_number=tracking_number,
-                carrier=carrier
+                moved_by_user_id=current_user.id,
+                chemical_id=chemical.id
             )
             db.session.add(movement)
         

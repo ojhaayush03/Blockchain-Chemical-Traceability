@@ -20,7 +20,7 @@
   {% endwith %}
   
   <div class="form-container">
-    <form method="POST" action="{{ url_for('main_bp.verify_receipt') }}">
+    <form method="POST" action="{{ url_for('customer_bp.verify_receipt', order_id=order.id) }}">
       {{ form.csrf_token }}
       
       <div class="form-section">
@@ -129,9 +129,10 @@
       </div>
       
       <div class="receipt-actions">
-        <form method="POST" action="{{ url_for('customer_bp.confirm_receipt', movement_id=movement.id) }}" id="confirmForm">
+        {% if form.movement_id.data %}
+        <form method="POST" action="{{ url_for('customer_bp.confirm_receipt', movement_id=form.movement_id.data) }}" id="confirmForm">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="hidden" name="movement_id" id="confirmMovementId" value="{{ movement.id }}">
+          <input type="hidden" name="movement_id" id="confirmMovementId" value="{{ form.movement_id.data }}">
           
           <div class="form-group">
             <label for="receipt_notes">Receipt Notes:</label>
@@ -140,7 +141,7 @@
           
           <div class="form-group">
             <label for="received_quantity">Actual Received Quantity:</label>
-            <input type="number" name="received_quantity" id="received_quantity" class="form-control" step="0.01" value="{{ movement.quantity_moved }}">
+            <input type="number" name="received_quantity" id="received_quantity" class="form-control" step="0.01" value="">
             <small class="form-text text-muted">Enter the actual quantity received. If it differs by more than 2% from expected quantity, an anomaly will be recorded.</small>
           </div>
           
@@ -156,6 +157,11 @@
           
           <button type="submit" class="btn btn-success">Confirm Receipt</button>
         </form>
+        {% else %}
+        <div class="alert alert-info">
+          <p>No movement information is available for this order yet. Please check back later or contact the distributor.</p>
+        </div>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -498,7 +504,10 @@
         document.getElementById('verifiedAt').textContent = new Date().toLocaleString();
         
         // Set hidden field for confirmation form
-        document.getElementById('confirmMovementId').value = movementIdInput.value;
+        const confirmMovementIdElement = document.getElementById('confirmMovementId');
+        if (confirmMovementIdElement) {
+          confirmMovementIdElement.value = movementIdInput.value;
+        }
         
         // Show verification result
         verificationResult.style.display = 'block';

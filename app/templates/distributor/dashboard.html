@@ -148,7 +148,7 @@
             <div class="movement-actions">
               <a href="{{ url_for('dashboard_bp.movement_detail', movement_id=movement.id) }}" class="btn btn-sm btn-outline-primary">View Details</a>
               {% if movement.status == 'in_transit' %}
-              <a href="{{ url_for('distributor_bp.update_movement', movement_id=movement.id) }}" class="btn btn-sm btn-outline-info">Update Status</a>
+              <!-- Update movement status button removed until route is implemented -->
               {% endif %}
             </div>
           </div>

@@ -76,82 +76,114 @@ def dashboard():
 @customer_required
 def place_order():
     """Route for customers to place new chemical orders"""
+    logger.info("Place order route accessed by user %s (org: %s)", current_user.email, current_user.organization_id)
     form = OrderForm()
     
     # Get all available chemicals from the database
     available_chemicals = Chemical.query.all()
+    logger.debug("Found %d available chemicals", len(available_chemicals))
+    
+    # Debug form submission
+    if request.method == 'POST':
+        logger.debug("POST request received with data: %s", request.form)
+        logger.debug("Form errors: %s", form.errors)
+        logger.debug("Form validation result: %s", form.validate())
+        
+        # Check specific fields
+        logger.debug("items_data field: %s", form.items_data.data if hasattr(form, 'items_data') and form.items_data else "Not found")
+        logger.debug("confirm_terms field: %s", form.confirm_terms.data if hasattr(form, 'confirm_terms') and form.confirm_terms else "Not found")
     
     if form.validate_on_submit():
-        # Generate a unique order number
-        order_number = f"ORD-{uuid.uuid4().hex[:8].upper()}"
-        
-        # Create new order
-        order = ChemicalOrder(
-            order_number=order_number,
-            customer_id=current_user.id,
-            customer_org_id=current_user.organization_id,
-            order_date=datetime.utcnow(),
-            required_by_date=form.required_by_date.data,
-            delivery_address=form.delivery_address.data,
-            special_instructions=form.special_instructions.data,
-            status='pending',
-            total_amount=0.0  # Will be calculated from items
-        )
-        
-        db.session.add(order)
-        db.session.flush()  # Get the order ID
-        
-        # Process order items from form data
-        items_data = json.loads(form.items_data.data)
-        total_amount = 0.0
-        
-        # Process order items
-        for item_data in items_data:
-            # Find the chemical by ID if provided
-            chemical_id = item_data.get('chemical_id')
-            chemical = None
+        logger.info("Form validated successfully")
+        try:
+            # Generate a unique order number
+            order_number = f"ORD-{uuid.uuid4().hex[:8].upper()}"
+            logger.debug("Generated order number: %s", order_number)
             
-            if chemical_id:
-                chemical = Chemical.query.get(int(chemical_id))
-    
-            # Create order item
-            item = OrderItem(
-                order_id=order.id,
-                chemical_name=item_data['chemical_name'],
-                chemical_id=chemical.id if chemical else None,
-                chemical_cas=item_data.get('chemical_cas', ''),
-                quantity=float(item_data['quantity']),
-                unit=item_data['unit'],
-                unit_price=float(item_data.get('unit_price', 0.0)),
-                special_requirements=item_data.get('special_requirements', ''),
-                status='pending'
+            # Create new order
+            order = ChemicalOrder(
+                order_number=order_number,
+                customer_id=current_user.id,
+                customer_org_id=current_user.organization_id,
+                order_date=datetime.utcnow(),
+                required_by_date=form.required_by_date.data,  # Now correctly handled as a date
+                delivery_address=form.delivery_address.data,
+                special_instructions=form.special_instructions.data,
+                status='pending',
+                total_amount=0.0  # Will be calculated from items
             )
             
-            # Add to total amount
-            item_total = item.quantity * item.unit_price
-            total_amount += item_total
+            logger.debug("Created order object: %s", order)
+            db.session.add(order)
+            db.session.flush()  # Get the order ID
+            logger.debug("Order flushed to DB with ID: %s", order.id)
             
-            db.session.add(item)
+            # Process order items from form data
+            items_data = json.loads(form.items_data.data)
+            logger.debug("Parsed items_data: %s", items_data)
+            total_amount = 0.0
+            
+            # Process order items
+            for i, item_data in enumerate(items_data):
+                logger.debug("Processing item %d: %s", i+1, item_data)
+                # Find the chemical by ID if provided
+                chemical_id = item_data.get('chemical_id')
+                chemical = None
+                
+                if chemical_id:
+                    chemical = Chemical.query.get(int(chemical_id))
+                    logger.debug("Found chemical: %s", chemical)
         
-        # Update order total
-        order.total_amount = total_amount
-        
-        # Create audit log
-        audit_log = AuditLog(
-            action_type='order_placed',
-            user_id=current_user.id,
-            organization_id=current_user.organization_id,
-            object_type='ChemicalOrder',
-            object_id=order.id,
-            description=f"New chemical order {order_number} placed with {len(items_data)} items",
-            ip_address=request.remote_addr
-        )
-        db.session.add(audit_log)
-        
-        db.session.commit()
-        
-        flash(f'Order {order_number} has been successfully placed and is pending approval.', 'success')
-        return redirect(url_for('customer_bp.view_order', order_id=order.id))
+                # Create order item
+                item = OrderItem(
+                    order_id=order.id,
+                    chemical_name=item_data['chemical_name'],
+                    chemical_id=chemical.id if chemical else None,
+                    # Removed chemical_cas as it's not in the OrderItem model
+                    quantity=float(item_data['quantity']),
+                    unit=item_data['unit'],
+                    unit_price=float(item_data.get('unit_price', 0.0)),
+                    special_requirements=item_data.get('special_requirements', ''),
+                    status='pending'
+                )
+                
+                # Add to total amount
+                item_total = item.quantity * item.unit_price
+                total_amount += item_total
+                
+                logger.debug("Created order item: %s", item)
+                db.session.add(item)
+            
+            # Update order total
+            order.total_amount = total_amount
+            logger.debug("Updated order total amount: %s", total_amount)
+            
+            # Create audit log
+            audit_log = AuditLog(
+                action_type='order_placed',
+                user_id=current_user.id,
+                organization_id=current_user.organization_id,
+                object_type='ChemicalOrder',
+                object_id=order.id,
+                description=f"New chemical order {order_number} placed with {len(items_data)} items",
+                ip_address=request.remote_addr
+            )
+            db.session.add(audit_log)
+            logger.debug("Added audit log: %s", audit_log)
+            
+            db.session.commit()
+            logger.info("Order %s successfully committed to database", order_number)
+            
+            flash(f'Order {order_number} has been successfully placed and is pending approval.', 'success')
+            return redirect(url_for('customer_bp.view_order', order_id=order.id))
+        except Exception as e:
+            db.session.rollback()
+            logger.error("Error placing order: %s", str(e), exc_info=True)
+            flash(f'Error placing order: {str(e)}', 'error')
+            return redirect(url_for('customer_bp.dashboard'))
+    else:
+        if request.method == 'POST':
+            logger.warning("Form validation failed with errors: %s", form.errors)
     
     return render_template('customer/place_order.html', form=form, available_chemicals=available_chemicals)
 
@@ -199,7 +231,7 @@ def edit_order(order_id):
         for item in order.items:
             items_data.append({
                 'chemical_name': item.chemical_name,
-                'chemical_cas': item.chemical_cas,
+                'chemical_id': item.chemical_id,
                 'quantity': item.quantity,
                 'unit': item.unit,
                 'unit_price': item.unit_price,
@@ -311,11 +343,24 @@ def cancel_order(order_id):
     
     return render_template('customer/cancel_order.html', order=order)
 
-@customer_bp.route('/verify-receipt', methods=['GET', 'POST'])
+@customer_bp.route('/verify-receipt/<int:order_id>', methods=['GET', 'POST'])
 @login_required
 @customer_required
-def verify_receipt():
-    """Route for customers to verify chemical receipts"""
+def verify_receipt(order_id):
+    """Route for customers to verify chemical receipts for a specific order"""
+    # Get the order first
+    order = ChemicalOrder.query.get_or_404(order_id)
+    
+    # Security check - ensure the order belongs to the current user's organization
+    if order.customer_org_id != current_user.organization_id:
+        flash('You do not have permission to verify this order.', 'error')
+        return redirect(url_for('customer_bp.dashboard'))
+    
+    # Check if the order status is 'shipped'
+    if order.status != 'shipped':
+        flash('This order is not ready for receipt verification. Current status: ' + order.status, 'warning')
+        return redirect(url_for('customer_bp.view_order', order_id=order.id))
+    
     form = VerifyReceiptForm()
     
     if form.validate_on_submit():
@@ -324,51 +369,72 @@ def verify_receipt():
         
         if not movement:
             flash('Movement record not found. Please check the movement ID.', 'error')
-            return render_template('customer/verify_receipt.html', form=form)
+            return render_template('customer/verify_receipt.html', form=form, order=order)
         
         # Check if the movement is intended for this customer's organization
         if movement.destination_org_id != current_user.organization_id:
-            flash('This shipment is not intended for your organization.', 'error')
-            return render_template('customer/verify_receipt.html', form=form)
+            flash('This movement is not intended for your organization.', 'error')
+            return render_template('customer/verify_receipt.html', form=form, order=order)
         
-        # Find the chemical
-        chemical = Chemical.query.filter_by(id=movement.chemical_id).first()
+        # Check if the movement has already been verified
+        existing_receipt = CustomerReceipt.query.filter_by(movement_log_id=movement.id).first()
+        if existing_receipt:
+            flash('This movement has already been verified.', 'warning')
+            return render_template('customer/verify_receipt.html', form=form, order=order)
         
-        if not chemical:
-            flash('Chemical record not found.', 'error')
-            return render_template('customer/verify_receipt.html', form=form)
-        
-        # Verify RFID tag if provided
-        if form.rfid_tag.data and form.rfid_tag.data != chemical.rfid_tag:
-            flash('RFID tag does not match the movement record.', 'error')
-            return render_template('customer/verify_receipt.html', form=form)
-        
-        # Verify on blockchain if enabled
-        blockchain_verified = False
-        blockchain_tx_hash = None
-        
-        try:
-            blockchain_client = BlockchainClient()
-            verification_result = blockchain_client.verify_movement(movement.id)
-            
-            if verification_result:
-                blockchain_verified = True
-                blockchain_tx_hash = movement.blockchain_tx_hash
-        except Exception as e:
-            flash(f'Blockchain verification error: {str(e)}', 'warning')
-        
-        # Return verification result
-        return render_template(
-            'customer/verify_receipt.html',
-            form=form,
-            movement=movement,
-            chemical=chemical,
-            blockchain_verified=blockchain_verified,
-            blockchain_tx_hash=blockchain_tx_hash,
-            verification_complete=True
+        # Create a new receipt record
+        receipt = CustomerReceipt(
+            movement_log_id=movement.id,
+            chemical_id=movement.chemical_id,
+            received_quantity=form.received_quantity.data,
+            expected_quantity=movement.quantity_moved,
+            quality_check_passed=form.quality_check_passed.data,
+            quality_remarks=form.quality_remarks.data,
+            received_by_user_id=current_user.id,
+            customer_org_id=current_user.organization_id
         )
+        
+        # Update the movement log status
+        movement.status = 'delivered'
+        
+        # Update the chemical's current location
+        chemical = Chemical.query.get(movement.chemical_id)
+        if chemical:
+            chemical.current_location = form.storage_location.data
+            chemical.current_custodian_org_id = current_user.organization_id
+        
+        # Update the order status if this was the last item to be delivered
+        order.status = 'delivered'
+        order.delivered_at = datetime.utcnow()
+        
+        # Create audit log
+        audit_log = AuditLog(
+            action_type='chemical_received',
+            user_id=current_user.id,
+            organization_id=current_user.organization_id,
+            object_type='Chemical',
+            object_id=movement.chemical_id,
+            description=f"Chemical {chemical.name if chemical else 'Unknown'} received and verified for order #{order.order_number}",
+            ip_address=request.remote_addr
+        )
+        
+        db.session.add(receipt)
+        db.session.add(audit_log)
+        db.session.commit()
+        
+        flash('Chemical receipt has been verified successfully.', 'success')
+        return redirect(url_for('customer_bp.view_order', order_id=order.id))
     
-    return render_template('customer/verify_receipt.html', form=form)
+    # Pre-populate the form with order information if available
+    if not form.is_submitted():
+        # Try to find the movement log associated with this order
+        order_items = OrderItem.query.filter_by(order_id=order.id).all()
+        for item in order_items:
+            if item.movement_log_id:
+                form.movement_id.data = item.movement_log_id
+                break
+    
+    return render_template('customer/verify_receipt.html', form=form, order=order)
 
 @customer_bp.route('/confirm-receipt/<int:movement_id>', methods=['GET', 'POST'])
 @login_required
@@ -421,14 +487,14 @@ def confirm_receipt(movement_id):
         
         if received_quantity < acceptable_min or received_quantity > acceptable_max:
             quantity_discrepancy = True
-            logger.warning(f"Quantity anomaly detected: Expected {expected_quantity} {chemical.unit}, received {received_quantity} {chemical.unit}")
+            logger.warning("Quantity anomaly detected: Expected {} {}, received {} {}".format(expected_quantity, chemical.unit, received_quantity, chemical.unit))
             
             # Create blockchain anomaly record
             anomaly = BlockchainAnomaly(
                 chemical_id=chemical.id,
                 movement_log_id=movement.id,
                 anomaly_type='quantity_discrepancy',
-                description=f"Quantity discrepancy detected. Expected: {expected_quantity} {chemical.unit}, Received: {received_quantity} {chemical.unit}",
+                description="Quantity discrepancy detected. Expected: {} {}, Received: {} {}".format(expected_quantity, chemical.unit, received_quantity, chemical.unit),
                 resolution_status='open'
             )
             db.session.add(anomaly)
@@ -454,8 +520,8 @@ def confirm_receipt(movement_id):
             organization_id=current_user.organization_id,
             object_type='MovementLog',
             object_id=movement.id,
-            description=f"Receipt confirmed for chemical movement {movement.id}" + 
-                       (f" with quantity anomaly" if quantity_discrepancy else ""),
+            description="Receipt confirmed for chemical movement {}".format(movement.id) + 
+                       (" with quantity anomaly" if quantity_discrepancy else ""),
             ip_address=request.remote_addr
         )
         db.session.add(audit_log)

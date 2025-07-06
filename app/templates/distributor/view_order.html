@@ -40,7 +40,7 @@
       <div class="summary-grid">
         <div class="summary-item">
           <div class="summary-label">Customer:</div>
-          <div class="summary-value">{{ order.customer_organization.name }}</div>
+          <div class="summary-value">{{ order.customer_org.name }}</div>
         </div>
         <div class="summary-item">
           <div class="summary-label">Order Date:</div>
@@ -88,7 +88,7 @@
               <div class="special-requirements">Note: {{ item.special_requirements }}</div>
               {% endif %}
             </td>
-            <td>{{ item.chemical_cas or 'N/A' }}</td>
+            <td>{{ item.chemical.cas_number if item.chemical else 'N/A' }}</td>
             <td>{{ item.quantity }} {{ item.unit }}</td>
             <td>${{ "%.2f"|format(item.unit_price) }}</td>
             <td>${{ "%.2f"|format(item.quantity * item.unit_price) }}</td>
@@ -108,9 +108,8 @@
               {% endif %}
             </td>
             <td>
-              {% if order.metadata and order.metadata.get('chemical_assignments') and order.metadata.get('chemical_assignments').get(item.id|string) %}
-                {% set chemical_id = order.metadata.get('chemical_assignments').get(item.id|string) %}
-                {% set chemical = chemical_id|int|get_chemical_by_id %}
+              {% if item.assigned_chemical_id %}
+                {% set chemical = item.assigned_chemical %}
                 {% if chemical %}
                   <div class="assigned-chemical">
                     <div>{{ chemical.name }}</div>
@@ -163,7 +162,7 @@
         <div class="timeline-content">
           <h4>Order Placed</h4>
           <p>{{ order.order_date.strftime('%Y-%m-%d %H:%M') }}</p>
-          <p class="timeline-user">By {{ order.customer_organization.name }}</p>
+          <p class="timeline-user">By {{ order.customer_org.name }}</p>
         </div>
       </div>
       
@@ -223,7 +222,7 @@
           <h4>Delivered</h4>
           {% if order.delivered_date %}
           <p>{{ order.delivered_date.strftime('%Y-%m-%d %H:%M') }}</p>
-          <p class="timeline-user">Confirmed by {{ order.customer_organization.name }}</p>
+          <p class="timeline-user">Confirmed by {{ order.customer_org.name }}</p>
           {% else %}
           <p class="pending">Pending</p>
           {% endif %}

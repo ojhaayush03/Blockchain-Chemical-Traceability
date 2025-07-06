@@ -157,6 +157,13 @@ def create_app():
     def load_user(user_id):
         return User.query.get(int(user_id))
 
+    # Register custom Jinja2 filters
+    @app.template_filter('nl2br')
+    def nl2br_filter(s):
+        if s:
+            return s.replace('\n', '<br>')
+        return ''
+    
     # Register Blueprints
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(main)

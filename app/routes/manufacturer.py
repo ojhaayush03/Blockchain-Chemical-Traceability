@@ -90,9 +90,7 @@ def register_chemical():
                     'manufacturer': current_user.organization.name,
                     'quantity': form.quantity.data,
                     'unit': form.unit.data,
-                    'expiry_date': form.expiry_date.data.strftime('%Y-%m-%d') if form.expiry_date.data else None,
                     'storage_condition': form.storage_condition.data,
-                    'received_date': datetime.utcnow().strftime('%Y-%m-%d'),
                     'batch_number': form.batch_number.data,
                     'hazard_class': form.hazard_class.data,
                     'cas_number': form.cas_number.data,
@@ -100,12 +98,24 @@ def register_chemical():
                     'current_location': form.initial_location.data if form.initial_location.data else 'Storage'
                 }
                 
+                # Handle date fields directly
+                if form.expiry_date.data:
+                    data['expiry_date'] = form.expiry_date.data.strftime('%Y-%m-%d')
+                    # Also store the actual date object for later use
+                    expiry_date = form.expiry_date.data
+                
+                # Set received date to current date
+                received_date = datetime.utcnow().date()
+                data['received_date'] = received_date.strftime('%Y-%m-%d')
+                
                 # Handle additional fields not in the dashboard form
                 if form.chemical_formula.data:
                     data['chemical_formula'] = form.chemical_formula.data
                     
                 if form.manufacturing_date.data:
                     data['manufacturing_date'] = form.manufacturing_date.data.strftime('%Y-%m-%d')
+                    # Also store the actual date object for later use
+                    manufacturing_date = form.manufacturing_date.data
                     
                 if form.handling_instructions.data:
                     data['handling_instructions'] = form.handling_instructions.data
@@ -113,17 +123,34 @@ def register_chemical():
                 # Form validation failed
                 return render_template('manufacturer/register_chemical.html', form=form)
         
-        # Convert date strings to datetime objects
+        # Convert date strings to datetime objects if they're not already date objects
         expiry_date = None
         received_date = None
         manufacturing_date = None
         
-        if data.get('expiry_date'):
-            expiry_date = datetime.strptime(data['expiry_date'], '%Y-%m-%d').date()
-        if data.get('received_date'):
-            received_date = datetime.strptime(data['received_date'], '%Y-%m-%d').date()
-        if data.get('manufacturing_date'):
-            manufacturing_date = datetime.strptime(data['manufacturing_date'], '%Y-%m-%d').date()
+        # For JSON requests, parse the date strings
+        if request.content_type and 'application/json' in request.content_type:
+            if data.get('expiry_date'):
+                try:
+                    expiry_date = datetime.strptime(data['expiry_date'], '%Y-%m-%d').date()
+                except ValueError:
+                    # Try alternate format
+                    expiry_date = datetime.strptime(data['expiry_date'], '%m/%d/%Y').date()
+                    
+            if data.get('received_date'):
+                try:
+                    received_date = datetime.strptime(data['received_date'], '%Y-%m-%d').date()
+                except ValueError:
+                    # Try alternate format
+                    received_date = datetime.strptime(data['received_date'], '%m/%d/%Y').date()
+                    
+            if data.get('manufacturing_date'):
+                try:
+                    manufacturing_date = datetime.strptime(data['manufacturing_date'], '%Y-%m-%d').date()
+                except ValueError:
+                    # Try alternate format
+                    manufacturing_date = datetime.strptime(data['manufacturing_date'], '%m/%d/%Y').date()
+        # For form submissions, the date objects are already available from earlier in the code
         
         # Create chemical in local database
         chemical = Chemical(
