@@ -24,146 +24,83 @@
       {{ form.csrf_token }}
       
       <div class="form-section">
-        <h3>Shipment Identification</h3>
+        <h3>Order Information</h3>
         
-        <div class="form-group">
-          {{ form.movement_id.label }} {{ form.movement_id(class="form-control") }}
-          <small class="form-text text-muted">Enter the movement ID from your shipping documents</small>
-          {% if form.movement_id.errors %}
-            <div class="error">
-              {% for error in form.movement_id.errors %}
-              <span>{{ error }}</span>
-              {% endfor %}
-            </div>
+        <div class="order-details">
+          <div class="info-row">
+            <div class="info-label">Order Number:</div>
+            <div class="info-value">{{ order.order_number }}</div>
+          </div>
+          
+          <div class="info-row">
+            <div class="info-label">Order Date:</div>
+            <div class="info-value">{{ order.order_date.strftime('%Y-%m-%d') }}</div>
+          </div>
+          
+          <div class="info-row">
+            <div class="info-label">Status:</div>
+            <div class="info-value">{{ order.status|title }}</div>
+          </div>
+          
+          {% if order.tracking_number %}
+          <div class="info-row">
+            <div class="info-label">Tracking Number:</div>
+            <div class="info-value">{{ order.tracking_number }}</div>
+          </div>
+          {% endif %}
+          
+          {% if order.carrier %}
+          <div class="info-row">
+            <div class="info-label">Carrier:</div>
+            <div class="info-value">{{ order.carrier }}</div>
+          </div>
           {% endif %}
         </div>
         
-        <div class="form-group">
-          {{ form.rfid_tag.label }} {{ form.rfid_tag(class="form-control") }}
-          <div class="rfid-scanner-container">
-            <button type="button" id="scanRfidBtn" class="btn btn-info btn-sm">
-              <i class="fas fa-rss"></i> Scan RFID
-            </button>
-            <div id="scanStatus" class="scan-status"></div>
-          </div>
-          {% if form.rfid_tag.errors %}
-            <div class="error">
-              {% for error in form.rfid_tag.errors %}
-              <span>{{ error }}</span>
-              {% endfor %}
+        <h4>Order Items</h4>
+        <div class="order-items">
+          {% for item in order.items %}
+          <div class="order-item-card">
+            <div class="item-header">{{ item.chemical_name }}</div>
+            <div class="item-details">
+              <div class="info-row">
+                <div class="info-label">Ordered Quantity:</div>
+                <div class="info-value">{{ item.quantity }} {{ item.unit }}</div>
+              </div>
+              
+              {% if item.chemical %}
+              <div class="info-row">
+                <div class="info-label">Batch Number:</div>
+                <div class="info-value">{{ item.chemical.batch_number }}</div>
+              </div>
+              {% endif %}
+              
+              <div class="form-group">
+                <label for="received_quantity_{{ item.id }}">Actual Received Quantity:</label>
+                <input type="number" name="received_quantity_{{ item.id }}" id="received_quantity_{{ item.id }}" 
+                       class="form-control" step="0.01" value="{{ item.quantity }}" required>
+                <small class="form-text text-muted">Enter the actual quantity received. If it differs from the ordered quantity, a discrepancy will be recorded.</small>
+              </div>
             </div>
-          {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        
+        <div class="form-group">
+          <label for="receipt_notes">Receipt Notes:</label>
+          <textarea name="receipt_notes" id="receipt_notes" class="form-control" rows="3"></textarea>
+        </div>
+        
+        <div class="form-group checkbox-group">
+          <input type="checkbox" name="confirm_condition" id="confirm_condition" class="form-check-input" required>
+          <label for="confirm_condition" class="form-check-label">I confirm that the chemicals were received in good condition</label>
         </div>
         
         <div class="form-actions">
-          <button type="button" id="verifyBtn" class="btn btn-primary">Verify Shipment</button>
+          <button type="submit" class="btn btn-success">Confirm Receipt</button>
         </div>
       </div>
     </form>
-  </div>
-  
-  <div id="verificationResult" class="verification-result" style="display: none;">
-    <div class="result-header">
-      <h3>Verification Results</h3>
-    </div>
-    
-    <div class="result-body">
-      <div class="shipment-details">
-        <h4>Shipment Information</h4>
-        
-        <div class="info-row">
-          <div class="info-label">Movement ID:</div>
-          <div id="movementId" class="info-value"></div>
-        </div>
-        
-        <div class="info-row">
-          <div class="info-label">Chemical:</div>
-          <div id="chemicalName" class="info-value"></div>
-        </div>
-        
-        <div class="info-row">
-          <div class="info-label">Batch Number:</div>
-          <div id="batchNumber" class="info-value"></div>
-        </div>
-        
-        <div class="info-row">
-          <div class="info-label">Quantity:</div>
-          <div id="quantity" class="info-value"></div>
-        </div>
-        
-        <div class="info-row">
-          <div class="info-label">Shipped From:</div>
-          <div id="sourceLocation" class="info-value"></div>
-        </div>
-        
-        <div class="info-row">
-          <div class="info-label">Shipped By:</div>
-          <div id="shippedBy" class="info-value"></div>
-        </div>
-        
-        <div class="info-row">
-          <div class="info-label">Shipping Date:</div>
-          <div id="shippingDate" class="info-value"></div>
-        </div>
-      </div>
-      
-      <div class="blockchain-verification">
-        <h4>Blockchain Verification</h4>
-        
-        <div class="verification-status">
-          <div id="verificationIcon" class="verification-icon"></div>
-          <div id="verificationMessage" class="verification-message"></div>
-        </div>
-        
-        <div class="blockchain-details">
-          <div class="info-row">
-            <div class="info-label">Transaction Hash:</div>
-            <div id="transactionHash" class="info-value hash-value"></div>
-          </div>
-          
-          <div class="info-row">
-            <div class="info-label">Verified At:</div>
-            <div id="verifiedAt" class="info-value"></div>
-          </div>
-        </div>
-      </div>
-      
-      <div class="receipt-actions">
-        {% if form.movement_id.data %}
-        <form method="POST" action="{{ url_for('customer_bp.confirm_receipt', movement_id=form.movement_id.data) }}" id="confirmForm">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="hidden" name="movement_id" id="confirmMovementId" value="{{ form.movement_id.data }}">
-          
-          <div class="form-group">
-            <label for="receipt_notes">Receipt Notes:</label>
-            <textarea name="receipt_notes" id="receipt_notes" class="form-control" rows="3"></textarea>
-          </div>
-          
-          <div class="form-group">
-            <label for="received_quantity">Actual Received Quantity:</label>
-            <input type="number" name="received_quantity" id="received_quantity" class="form-control" step="0.01" value="">
-            <small class="form-text text-muted">Enter the actual quantity received. If it differs by more than 2% from expected quantity, an anomaly will be recorded.</small>
-          </div>
-          
-          <div class="form-group checkbox-group">
-            <input type="checkbox" name="confirm_quantity" id="confirm_quantity" class="form-check-input" required>
-            <label for="confirm_quantity" class="form-check-label">I confirm that the quantity received matches the shipment details</label>
-          </div>
-          
-          <div class="form-group checkbox-group">
-            <input type="checkbox" name="confirm_condition" id="confirm_condition" class="form-check-input" required>
-            <label for="confirm_condition" class="form-check-label">I confirm that the chemicals were received in good condition</label>
-          </div>
-          
-          <button type="submit" class="btn btn-success">Confirm Receipt</button>
-        </form>
-        {% else %}
-        <div class="alert alert-info">
-          <p>No movement information is available for this order yet. Please check back later or contact the distributor.</p>
-        </div>
-        {% endif %}
-      </div>
-    </div>
   </div>
 </div>
 
@@ -199,6 +136,42 @@
     color: #2c3e50;
   }
   
+  .form-section h4 {
+    margin-top: 20px;
+    margin-bottom: 15px;
+    color: #2c3e50;
+  }
+  
+  .order-details {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+  }
+  
+  .order-items {
+    margin-bottom: 20px;
+  }
+  
+  .order-item-card {
+    background-color: #f8f9fa;
+    border-left: 4px solid #3498db;
+    padding: 15px;
+    margin-bottom: 15px;
+    border-radius: 4px;
+  }
+  
+  .item-header {
+    font-weight: bold;
+    font-size: 1.1rem;
+    margin-bottom: 10px;
+    color: #2c3e50;
+  }
+  
+  .item-details {
+    padding-left: 10px;
+  }
+  
   .form-group {
     margin-bottom: 20px;
   }
@@ -222,69 +195,6 @@
     margin-top: 5px;
   }
   
-  .rfid-scanner-container {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-top: 10px;
-  }
-  
-  .scan-status {
-    font-size: 0.9rem;
-  }
-  
-  .scan-status.scanning {
-    color: #17a2b8;
-  }
-  
-  .scan-status.success {
-    color: #28a745;
-  }
-  
-  .scan-status.error {
-    color: #dc3545;
-  }
-  
-  .form-actions {
-    margin-top: 20px;
-  }
-  
-  .verification-result {
-    background-color: #fff;
-    border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    overflow: hidden;
-  }
-  
-  .result-header {
-    padding: 15px 25px;
-    background-color: #f8f9fa;
-    border-bottom: 1px solid #eee;
-  }
-  
-  .result-header h3 {
-    margin: 0;
-    color: #2c3e50;
-  }
-  
-  .result-body {
-    padding: 25px;
-  }
-  
-  .shipment-details,
-  .blockchain-verification {
-    margin-bottom: 30px;
-  }
-  
-  .shipment-details h4,
-  .blockchain-verification h4 {
-    margin-top: 0;
-    margin-bottom: 15px;
-    color: #2c3e50;
-    border-bottom: 1px solid #eee;
-    padding-bottom: 10px;
-  }
-  
   .info-row {
     display: flex;
     margin-bottom: 10px;
@@ -300,77 +210,6 @@
     flex: 1;
   }
   
-  .hash-value {
-    font-family: monospace;
-    background-color: #f8f9fa;
-    padding: 2px 5px;
-    border-radius: 3px;
-    font-size: 0.9rem;
-    word-break: break-all;
-  }
-  
-  .verification-status {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    margin-bottom: 20px;
-    padding: 15px;
-    border-radius: 4px;
-  }
-  
-  .verification-status.success {
-    background-color: #d4edda;
-  }
-  
-  .verification-status.error {
-    background-color: #f8d7da;
-  }
-  
-  .verification-icon {
-    font-size: 24px;
-    width: 40px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-  }
-  
-  .verification-icon.success {
-    background-color: #28a745;
-    color: white;
-  }
-  
-  .verification-icon.error {
-    background-color: #dc3545;
-    color: white;
-  }
-  
-  .verification-message {
-    font-weight: bold;
-    flex: 1;
-  }
-  
-  .verification-message.success {
-    color: #155724;
-  }
-  
-  .verification-message.error {
-    color: #721c24;
-  }
-  
-  .blockchain-details {
-    background-color: #f8f9fa;
-    padding: 15px;
-    border-radius: 4px;
-  }
-  
-  .receipt-actions {
-    margin-top: 30px;
-    padding-top: 20px;
-    border-top: 1px solid #eee;
-  }
-  
   .checkbox-group {
     display: flex;
     align-items: flex-start;
@@ -379,6 +218,10 @@
   
   .form-check-input {
     margin-top: 3px;
+  }
+  
+  .form-actions {
+    margin-top: 20px;
   }
   
   .btn {
@@ -391,23 +234,8 @@
     border: none;
   }
   
-  .btn-sm {
-    padding: 5px 10px;
-    font-size: 0.875rem;
-  }
-  
-  .btn-primary {
-    background-color: #007bff;
-    color: white;
-  }
-  
   .btn-secondary {
     background-color: #6c757d;
-    color: white;
-  }
-  
-  .btn-info {
-    background-color: #17a2b8;
     color: white;
   }
   
@@ -415,104 +243,5 @@
     background-color: #28a745;
     color: white;
   }
-  
-  .error {
-    color: #dc3545;
-    font-size: 0.9rem;
-    margin-top: 5px;
-  }
-  
-  .alert {
-    padding: 12px;
-    border-radius: 4px;
-    margin-bottom: 20px;
-  }
-  
-  .alert.error {
-    background-color: #f8d7da;
-    color: #721c24;
-    border: 1px solid #f5c6cb;
-  }
-  
-  .alert.success {
-    background-color: #d4edda;
-    color: #155724;
-    border: 1px solid #c3e6cb;
-  }
 </style>
-
-<script>
-  document.addEventListener('DOMContentLoaded', function() {
-    // RFID scanning simulation
-    const scanRfidBtn = document.getElementById('scanRfidBtn');
-    const scanStatus = document.getElementById('scanStatus');
-    const rfidInput = document.getElementById('{{ form.rfid_tag.id }}');
-    
-    scanRfidBtn.addEventListener('click', function() {
-      // Simulate RFID scanning
-      scanStatus.textContent = 'Scanning...';
-      scanStatus.className = 'scan-status scanning';
-      
-      // Simulate API call to get RFID
-      setTimeout(function() {
-        // In a real application, this would be an actual RFID scan
-        const demoRfid = 'RFID-' + Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
-        rfidInput.value = demoRfid;
-        
-        scanStatus.textContent = 'RFID scanned successfully';
-        scanStatus.className = 'scan-status success';
-      }, 1500);
-    });
-    
-    // Verification process
-    const verifyBtn = document.getElementById('verifyBtn');
-    const verificationResult = document.getElementById('verificationResult');
-    const movementIdInput = document.getElementById('{{ form.movement_id.id }}');
-    
-    verifyBtn.addEventListener('click', function() {
-      // In a real application, this would be an API call to verify the shipment
-      // For demo purposes, we'll simulate a successful verification
-      
-      if (!movementIdInput.value) {
-        alert('Please enter a Movement ID');
-        return;
-      }
-      
-      // Simulate API call
-      setTimeout(function() {
-        // Populate verification result with demo data
-        document.getElementById('movementId').textContent = movementIdInput.value;
-        document.getElementById('chemicalName').textContent = 'Acetone (C₃H₆O)';
-        document.getElementById('batchNumber').textContent = 'ACT-2023-001';
-        document.getElementById('quantity').textContent = '200 liters';
-        document.getElementById('sourceLocation').textContent = 'Warehouse A, Chemical Corp';
-        document.getElementById('shippedBy').textContent = 'John Doe (distributor@chemicalcorp.com)';
-        document.getElementById('shippingDate').textContent = '2023-06-10 14:30';
-        
-        // Blockchain verification
-        const verificationIcon = document.getElementById('verificationIcon');
-        const verificationMessage = document.getElementById('verificationMessage');
-        const verificationStatus = verificationIcon.parentElement;
-        
-        verificationIcon.innerHTML = '✓';
-        verificationIcon.className = 'verification-icon success';
-        verificationMessage.textContent = 'Blockchain verification successful. Chemical movement record is valid.';
-        verificationMessage.className = 'verification-message success';
-        verificationStatus.className = 'verification-status success';
-        
-        document.getElementById('transactionHash').textContent = '0x7f9e8d7c6b5a4e3f2d1c0b9a8e7d6c5b4a3f2e1d';
-        document.getElementById('verifiedAt').textContent = new Date().toLocaleString();
-        
-        // Set hidden field for confirmation form
-        const confirmMovementIdElement = document.getElementById('confirmMovementId');
-        if (confirmMovementIdElement) {
-          confirmMovementIdElement.value = movementIdInput.value;
-        }
-        
-        // Show verification result
-        verificationResult.style.display = 'block';
-      }, 2000);
-    });
-  });
-</script>
 {% endblock %}

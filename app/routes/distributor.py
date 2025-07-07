@@ -5,6 +5,10 @@ from app.models import Chemical, MovementLog, AuditLog, Organization, ChemicalOr
 from app.forms import MovementForm
 from app import db
 from app.decorators import distributor_required
+import logging
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 # Import blockchain client if available
 try:
@@ -226,6 +230,12 @@ def ship_order(order_id):
             chemical.current_location = 'In Transit'
             chemical.current_custodian_org_id = current_user.organization_id
             
+            # Update chemical quantity - subtract the shipped amount from quantity
+            if chemical.quantity is not None:
+                # Ensure we don't go below zero
+                chemical.quantity = max(0, chemical.quantity - item.quantity)
+                logger.info(f"Updated chemical {chemical.id} quantity to {chemical.quantity} after shipping {item.quantity} units")
+            
             # Create movement log
             movement = MovementLog(
                 tag_id=chemical.rfid_tag,
@@ -237,9 +247,13 @@ def ship_order(order_id):
                 source_org_id=current_user.organization_id,
                 destination_org_id=order.customer_org_id,
                 moved_by_user_id=current_user.id,
-                chemical_id=chemical.id
+                chemical_id=chemical.id,
+                quantity_moved=item.quantity  # Record the quantity being moved
             )
             db.session.add(movement)
+            
+            # Link the movement log to the order item
+            item.movement_log_id = movement.id
         
         # Create audit log
         audit_log = AuditLog(

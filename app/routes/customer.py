@@ -17,8 +17,6 @@ try:
 except ImportError:
     BlockchainClient = None
     
-logger = logging.getLogger(__name__)
-
 customer_bp = Blueprint('customer_bp', __name__, url_prefix='/customer')
 
 @customer_bp.route('/dashboard')
@@ -363,76 +361,129 @@ def verify_receipt(order_id):
     
     form = VerifyReceiptForm()
     
-    if form.validate_on_submit():
-        # Find the movement by ID
-        movement = MovementLog.query.filter_by(id=form.movement_id.data).first()
-        
-        if not movement:
-            flash('Movement record not found. Please check the movement ID.', 'error')
-            return render_template('customer/verify_receipt.html', form=form, order=order)
-        
-        # Check if the movement is intended for this customer's organization
-        if movement.destination_org_id != current_user.organization_id:
-            flash('This movement is not intended for your organization.', 'error')
-            return render_template('customer/verify_receipt.html', form=form, order=order)
-        
-        # Check if the movement has already been verified
-        existing_receipt = CustomerReceipt.query.filter_by(movement_log_id=movement.id).first()
-        if existing_receipt:
-            flash('This movement has already been verified.', 'warning')
-            return render_template('customer/verify_receipt.html', form=form, order=order)
-        
-        # Create a new receipt record
-        receipt = CustomerReceipt(
-            movement_log_id=movement.id,
-            chemical_id=movement.chemical_id,
-            received_quantity=form.received_quantity.data,
-            expected_quantity=movement.quantity_moved,
-            quality_check_passed=form.quality_check_passed.data,
-            quality_remarks=form.quality_remarks.data,
-            received_by_user_id=current_user.id,
-            customer_org_id=current_user.organization_id
-        )
-        
-        # Update the movement log status
-        movement.status = 'delivered'
-        
-        # Update the chemical's current location
-        chemical = Chemical.query.get(movement.chemical_id)
-        if chemical:
-            chemical.current_location = form.storage_location.data
-            chemical.current_custodian_org_id = current_user.organization_id
-        
-        # Update the order status if this was the last item to be delivered
-        order.status = 'delivered'
-        order.delivered_at = datetime.utcnow()
-        
-        # Create audit log
-        audit_log = AuditLog(
-            action_type='chemical_received',
-            user_id=current_user.id,
-            organization_id=current_user.organization_id,
-            object_type='Chemical',
-            object_id=movement.chemical_id,
-            description=f"Chemical {chemical.name if chemical else 'Unknown'} received and verified for order #{order.order_number}",
-            ip_address=request.remote_addr
-        )
-        
-        db.session.add(receipt)
-        db.session.add(audit_log)
-        db.session.commit()
-        
-        flash('Chemical receipt has been verified successfully.', 'success')
-        return redirect(url_for('customer_bp.view_order', order_id=order.id))
-    
-    # Pre-populate the form with order information if available
-    if not form.is_submitted():
-        # Try to find the movement log associated with this order
-        order_items = OrderItem.query.filter_by(order_id=order.id).all()
-        for item in order_items:
-            if item.movement_log_id:
-                form.movement_id.data = item.movement_log_id
-                break
+    if request.method == 'POST':
+        try:
+            receipt_notes = request.form.get('receipt_notes', '')
+            confirm_condition = bool(request.form.get('confirm_condition', False))
+            
+            # Track if any discrepancies were found
+            has_discrepancies = False
+            
+            # Process each order item
+            for item in order.items:
+                # Skip items without assigned chemicals
+                if not item.assigned_chemical_id:
+                    continue
+                
+                # Get the received quantity for this item
+                received_quantity_key = f'received_quantity_{item.id}'
+                if received_quantity_key not in request.form:
+                    continue
+                
+                received_quantity = float(request.form.get(received_quantity_key, 0))
+                expected_quantity = item.quantity
+                
+                # Get the chemical
+                chemical = Chemical.query.get(item.assigned_chemical_id)
+                if not chemical:
+                    continue
+                
+                # Check for quantity discrepancies (allow 2% margin)
+                error_margin = 0.02
+                acceptable_min = expected_quantity * (1 - error_margin)
+                acceptable_max = expected_quantity * (1 + error_margin)
+                quantity_discrepancy = received_quantity < acceptable_min or received_quantity > acceptable_max
+                
+                if quantity_discrepancy:
+                    has_discrepancies = True
+                    logger.warning(f"Quantity anomaly detected for item {item.id}: Expected {expected_quantity} {item.unit}, received {received_quantity} {item.unit}")
+                    
+                    # Create blockchain anomaly record
+                    anomaly = BlockchainAnomaly(
+                        chemical_id=chemical.id,
+                        anomaly_type='quantity_discrepancy',
+                        description=f"Quantity discrepancy detected. Expected: {expected_quantity} {item.unit}, Received: {received_quantity} {item.unit}",
+                        resolution_status='open'
+                    )
+                    db.session.add(anomaly)
+                    
+                    flash(f'Warning: The received quantity for {chemical.name} ({received_quantity} {item.unit}) differs significantly from the expected quantity ({expected_quantity} {item.unit}). This anomaly has been recorded.', 'warning')
+                
+                # Create a movement log for the receipt
+                # Find the distributor organization ID - either from the order or use the manufacturer's org
+                source_org_id = None
+                if hasattr(order, 'distributor_org_id') and order.distributor_org_id:
+                    source_org_id = order.distributor_org_id
+                elif hasattr(chemical, 'manufacturer_org_id') and chemical.manufacturer_org_id:
+                    source_org_id = chemical.manufacturer_org_id
+                else:
+                    # Fallback to system organization (ID 1) if no source org can be determined
+                    source_org_id = 1
+                
+                movement = MovementLog(
+                    tag_id=chemical.rfid_tag,
+                    chemical_id=chemical.id,
+                    location='Customer Storage',
+                    source_location='In Transit',
+                    timestamp=datetime.utcnow(),
+                    purpose=f'Order receipt #{order.order_number}',
+                    status='delivered',
+                    remarks=receipt_notes,
+                    quantity_moved=received_quantity,
+                    moved_by_user_id=current_user.id,
+                    source_org_id=source_org_id,
+                    destination_org_id=current_user.organization_id
+                )
+                db.session.add(movement)
+                db.session.flush()  # Flush to get the movement ID
+                
+                # Update the chemical's location and quantity
+                chemical.current_location = 'Customer Storage'
+                chemical.current_custodian_org_id = current_user.organization_id
+                
+                # Create receipt record
+                receipt = CustomerReceipt(
+                    chemical_id=chemical.id,
+                    movement_log_id=movement.id,
+                    received_quantity=received_quantity,
+                    expected_quantity=expected_quantity,
+                    quality_check_passed=confirm_condition,
+                    quality_remarks=receipt_notes,
+                    received_by_user_id=current_user.id,
+                    customer_org_id=current_user.organization_id
+                )
+                db.session.add(receipt)
+            
+            # Update order status
+            order.status = 'delivered'
+            order.delivered_at = datetime.utcnow()
+            
+            # Create audit log
+            audit_log = AuditLog(
+                action_type='order_received',
+                user_id=current_user.id,
+                organization_id=current_user.organization_id,
+                object_type='ChemicalOrder',
+                object_id=order.id,
+                description=f"Order {order.order_number} received by customer" + 
+                           (" with quantity discrepancies" if has_discrepancies else ""),
+                ip_address=request.remote_addr
+            )
+            db.session.add(audit_log)
+            
+            db.session.commit()
+            
+            if has_discrepancies:
+                flash("Order receipt confirmed with quantity discrepancies. An investigation has been initiated.", 'warning')
+            else:
+                flash("Order receipt confirmed successfully.", 'success')
+            
+            return redirect(url_for('customer_bp.dashboard'))
+            
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error confirming receipt: {str(e)}", exc_info=True)
+            flash(f"Error confirming receipt: {str(e)}", 'error')
     
     return render_template('customer/verify_receipt.html', form=form, order=order)
 
@@ -456,8 +507,8 @@ def confirm_receipt(movement_id):
         # Check if already received
         receipt = CustomerReceipt.query.filter_by(movement_log_id=movement.id).first()
         if receipt:
-            flash('This shipment has already been marked as received.', 'info')
-            return redirect(url_for('dashboard_bp.dashboard'))
+            flash('This movement has already been verified.', 'warning')
+            return render_template('customer/verify_receipt.html', form=form)
         
         # Update movement status
         movement.status = 'delivered'

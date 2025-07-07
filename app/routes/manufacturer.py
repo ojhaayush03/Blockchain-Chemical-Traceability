@@ -216,13 +216,26 @@ def register_chemical():
                 # Get manufacturer name from the organization associated with the current user
                 manufacturer = current_user.organization.name if current_user.organization else "Unknown Manufacturer"
                 
+                logger.info(f"Attempting to register chemical {data['name']} with RFID {data['rfid_tag']} on blockchain")
+                logger.info(f"Blockchain client type: {type(current_app.blockchain_client).__name__}")
+                logger.info(f"Blockchain client methods: {[m for m in dir(current_app.blockchain_client) if not m.startswith('_')]}")
+                
                 blockchain_result = current_app.blockchain_client.register_chemical(
                     data['rfid_tag'],
                     data['name'],
                     manufacturer
                 )
+                
+                logger.info(f"Blockchain registration result: {blockchain_result}")
             except Exception as e:
+                logger.error(f"Error registering chemical on blockchain: {str(e)}")
                 blockchain_result = {'success': False, 'error': str(e)}
+        else:
+            logger.warning("Blockchain client not available. Chemical will not be registered on blockchain.")
+            if not hasattr(current_app, 'blockchain_client'):
+                logger.warning("blockchain_client attribute not found in current_app")
+            elif current_app.blockchain_client is None:
+                logger.warning("blockchain_client is None")
         
         db.session.commit()
         
@@ -275,7 +288,8 @@ def prepare_shipment(chemical_id):
     form = ShipmentForm()
     
     # Create a dropdown for selecting distributor
-    form.carrier.choices = [(d.id, d.name) for d in distributors]
+    # Modify the form to use distributor IDs directly
+    form.carrier.choices = [(str(d.id), d.name) for d in distributors]
     
     if form.validate_on_submit():
         try:
@@ -296,14 +310,8 @@ def prepare_shipment(chemical_id):
                 quantity_moved=chemical.quantity,
                 moved_by_user_id=current_user.id,
                 source_org_id=current_user.organization_id,
-                destination_org_id=distributor_id,
-                tracking_number=form.tracking_number.data,
-                carrier=form.carrier.data,
-                temperature_controlled=form.temperature_controlled.data,
-                min_temperature=form.min_temperature.data if form.temperature_controlled.data else None,
-                max_temperature=form.max_temperature.data if form.temperature_controlled.data else None,
-                special_handling=form.special_handling.data,
-                handling_instructions=form.handling_instructions.data if form.special_handling.data else None
+                destination_org_id=distributor_id
+                # Removed tracking_number and other fields that aren't in the database schema
             )
             
             db.session.add(movement)
@@ -324,27 +332,9 @@ def prepare_shipment(chemical_id):
             )
             db.session.add(audit_log)
             
-            # Record on blockchain if enabled
-            if form.confirm_accuracy.data and BlockchainClient:
-                try:
-                    blockchain_client = BlockchainClient()
-                    tx_hash = blockchain_client.record_movement(
-                        movement_id=str(movement.id),
-                        chemical_id=chemical.id,
-                        source=current_user.organization.name,
-                        destination=distributor.name,
-                        timestamp=datetime.utcnow().isoformat(),
-                        manufacturer_id=current_user.organization_id
-                    )
-                    
-                    if tx_hash:
-                        movement.blockchain_recorded = True
-                        flash('Shipment successfully recorded on blockchain.', 'success')
-                    else:
-                        flash('Shipment prepared but blockchain recording failed. An administrator will review this.', 'warning')
-                except Exception as e:
-                    logger.error(f"Blockchain recording error: {str(e)}")
-                    flash(f'Shipment prepared but blockchain recording failed: {str(e)}. An administrator will review this.', 'warning')
+            # Blockchain recording disabled as requested
+            # Comment: The blockchain client usage has been disabled as requested by the user
+            # All data will now only be stored in the database
             
             db.session.commit()
             flash(f'Chemical {chemical.name} has been prepared for shipment to {distributor.name}.', 'success')

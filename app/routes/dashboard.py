@@ -92,6 +92,48 @@ def movement_detail(movement_id):
         audit_logs=audit_logs
     )
 
+@dashboard_bp.route('/chemical/<int:chemical_id>/update_quantity', methods=['POST'])
+@login_required
+def update_chemical_quantity(chemical_id):
+    """Update the quantity of a chemical (manufacturer only)"""
+    chemical = Chemical.query.get_or_404(chemical_id)
+    
+    # Check if user has permission to update this chemical
+    if current_user.role != RoleType.MANUFACTURER or chemical.manufacturer_org_id != current_user.organization_id:
+        flash('You do not have permission to update this chemical quantity.', 'danger')
+        return redirect(url_for('dashboard_bp.chemical_detail', chemical_id=chemical_id))
+    
+    # Get form data
+    new_quantity = request.form.get('quantity', type=float)
+    reason = request.form.get('reason')
+    
+    if not new_quantity or new_quantity < 0:
+        flash('Please provide a valid quantity value.', 'danger')
+        return redirect(url_for('dashboard_bp.chemical_detail', chemical_id=chemical_id))
+    
+    # Store the old quantity for logging
+    old_quantity = chemical.quantity
+    
+    # Update the chemical quantity
+    chemical.quantity = new_quantity
+    
+    # Create audit log for this update
+    audit_log = AuditLog(
+        action_type='chemical_quantity_update',
+        user_id=current_user.id,
+        organization_id=current_user.organization_id,
+        object_type='Chemical',
+        object_id=chemical.id,
+        description=f"Updated chemical quantity from {old_quantity} to {new_quantity} {chemical.unit}. Reason: {reason}",
+        success=True
+    )
+    
+    db.session.add(audit_log)
+    db.session.commit()
+    
+    flash(f'Chemical quantity successfully updated to {new_quantity} {chemical.unit}.', 'success')
+    return redirect(url_for('dashboard_bp.chemical_detail', chemical_id=chemical_id))
+
 @dashboard_bp.route('/add_chemical', methods=['POST'])
 @login_required
 @manufacturer_required

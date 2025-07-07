@@ -72,7 +72,7 @@
             <option value="{{ chemical.id }}">
               {{ chemical.name }} - Batch: {{ chemical.batch_number }} - 
               Available: {{ chemical.quantity }} {{ chemical.unit }} - 
-              Expiry: {{ chemical.expiry_date.strftime('%Y-%m-%d') }}
+              Expiry: {{ chemical.expiry_date.strftime('%Y-%m-%d') if chemical.expiry_date else 'Not specified' }}
             </option>
             {% endfor %}
           </select>
