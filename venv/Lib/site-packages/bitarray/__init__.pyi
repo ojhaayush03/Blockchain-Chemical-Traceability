@@ -9,7 +9,8 @@ from typing import Any, BinaryIO, Dict, Union, overload
 
 
 CodeDict = Dict[Any, bitarray]
-BytesLike = Union[bytes, Iterable[int]]
+# Python 3.12 has abc.Buffer which should be used instead
+BytesLike = Union[bytes, bytearray]
 
 
 class decodetree:
@@ -45,7 +46,6 @@ class bitarray:
     def decode(self,
                code: Union[CodeDict, decodetree]) -> Iterator: ...
 
-    def endian(self) -> str: ...
     def extend(self, x: Union[str, Iterable[int]]) -> None: ...
     def fill(self) -> int: ...
     def find(self,
@@ -130,6 +130,8 @@ class bitarray:
     def __irshift__(self, n: int) -> bitarray: ...
 
     # data descriptors
+    @property
+    def endian(self) -> str: ...
     @property
     def nbytes(self) -> int: ...
     @property

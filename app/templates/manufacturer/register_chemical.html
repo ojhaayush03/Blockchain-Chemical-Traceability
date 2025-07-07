@@ -7,7 +7,7 @@
   <div class="header-with-actions">
     <h2>Register New Chemical</h2>
     <div class="action-buttons">
-      <a href="{{ url_for('manufacturer_bp.register_chemical') }}" class="btn btn-secondary">Back to Dashboard</a>
+      <a href="{{ url_for('manufacturer_bp.dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
     </div>
   </div>
   
@@ -177,8 +177,8 @@
         <h3>RFID Tracking</h3>
         
         <div class="form-group">
-          {{ form.rfid_tag.label }} {{ form.rfid_tag(class="form-control") }}
-          <small class="form-text text-muted">Leave blank to auto-generate</small>
+          {{ form.rfid_tag.label }} {{ form.rfid_tag(class="form-control", readonly=true) }} {# Added readonly #}
+          <small class="form-text text-muted">Scan NFC tag below to populate this field.</small>
           {% if form.rfid_tag.errors %}
             <div class="error">
               {% for error in form.rfid_tag.errors %}
@@ -187,6 +187,24 @@
             </div>
           {% endif %}
         </div>
+
+        {# NEW NFC SECTION START #}
+        <div class="form-group">
+            <label>NFC Tag Management:</label>
+            <div class="nfc-section" id="nfcSection">
+                <button type="button" class="scan-btn" id="scanBtn" onclick="startNFCProcess()">
+                    📱 Scan NFC Tag
+                </button>
+                <div class="uid-display" id="uidDisplay">
+                    Click button to scan NFC tag
+                </div>
+                <button type="button" class="write-btn" id="writeBtn" onclick="writeToNFC()" disabled>
+                    💾 Write Data to NFC Tag
+                </button>
+            </div>
+            <div class="status-message" id="statusMessage"></div>
+        </div>
+        {# NEW NFC SECTION END #}
         
         <div class="form-group">
           {{ form.initial_location.label }} {{ form.initial_location(class="form-control", placeholder="Storage") }}
@@ -248,6 +266,7 @@
 </div>
 
 <style>
+  /* Existing styles from register_chemical.html */
   .content-container {
     max-width: 900px;
     margin: 30px auto;
@@ -415,5 +434,345 @@
       width: 100%;
     }
   }
+
+  /* NEW NFC STYLES FROM code.html */
+  .nfc-section {
+      border: 2px dashed #d0d0d0;
+      border-radius: 15px;
+      padding: 25px;
+      text-align: center;
+      background: rgba(102, 126, 234, 0.05);
+      transition: all 0.3s ease;
+  }
+
+  .nfc-section.active {
+      border-color: #667eea;
+      background: rgba(102, 126, 234, 0.1);
+      transform: scale(1.02);
+  }
+
+  .scan-btn {
+      background: linear-gradient(45deg, #667eea, #764ba2);
+      color: white;
+      border: none;
+      padding: 15px 30px;
+      border-radius: 25px;
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+      margin-bottom: 20px;
+  }
+
+  .scan-btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+  }
+
+  .scan-btn:active {
+      transform: translateY(-1px);
+  }
+
+  .scan-btn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+  }
+
+  .uid-display {
+      background: #f8f9fa;
+      border: 2px solid #e9ecef;
+      border-radius: 10px;
+      padding: 15px;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      color: #495057;
+      min-height: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      word-break: break-all; /* Ensure long UIDs wrap */
+  }
+
+  .uid-display.has-uid {
+      background: #d4edda;
+      border-color: #c3e6cb;
+      color: #155724;
+      font-weight: 600;
+  }
+
+  .status-message {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 10px;
+      text-align: center;
+      font-weight: 600;
+      display: none; /* Hidden by default */
+  }
+
+  .status-message.success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+  }
+
+  .status-message.error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+  }
+
+  .status-message.info {
+      background: #cce7ff;
+      color: #004085;
+      border: 1px solid #b8daff;
+  }
+
+  .status-message.warning {
+      background: #fff3cd;
+      color: #856404;
+      border: 1px solid #ffeaa7;
+  }
+
+  .write-btn {
+      background: linear-gradient(45deg, #28a745, #20c997);
+      color: white;
+      border: none;
+      padding: 15px 30px;
+      border-radius: 25px;
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
+      width: 100%;
+      margin-top: 20px;
+  }
+
+  .write-btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 25px rgba(40, 167, 69, 0.4);
+  }
+
+  .write-btn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+  }
+
+  .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #667eea;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-right: 10px;
+  }
+
+  @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+  }
+
+  .pulse {
+      animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); }
+  }
 </style>
+
+<script>
+    let currentUID = null;
+    let isScanning = false;
+
+    function showStatus(message, type = 'info') {
+        const statusEl = document.getElementById('statusMessage');
+        statusEl.textContent = message;
+        statusEl.className = `status-message ${type}`;
+        statusEl.style.display = 'block';
+        
+        if (type === 'success' || type === 'info') {
+            setTimeout(() => {
+                statusEl.style.display = 'none';
+            }, 4000);
+        }
+    }
+
+    function updateUIDDisplay(uid) {
+        const uidDisplay = document.getElementById('uidDisplay');
+        const rfidTagInput = document.getElementById('rfid_tag'); // Get the RFID tag input field
+        if (uid) {
+            uidDisplay.textContent = `UID: ${uid}`;
+            uidDisplay.classList.add('has-uid');
+            rfidTagInput.value = uid; // Populate the form's RFID tag field
+        } else {
+            uidDisplay.textContent = 'Click button to scan NFC tag';
+            uidDisplay.classList.remove('has-uid');
+            rfidTagInput.value = ''; // Clear the form's RFID tag field
+        }
+    }
+
+    function startNFCProcess() {
+        if (isScanning) return;
+        
+        // No quantity/unit validation here, as we only need UID for scanning
+        
+        isScanning = true;
+        
+        const scanBtn = document.getElementById('scanBtn');
+        const nfcSection = document.getElementById('nfcSection');
+        
+        scanBtn.innerHTML = '<span class="loading"></span>Scanning for NFC Tag...';
+        scanBtn.disabled = true;
+        nfcSection.classList.add('active', 'pulse');
+        
+        showStatus('Please place your NFC tag on the reader to get its UID...', 'info');
+        
+        // Real NFC scanning - communicate with ESP8266
+        setTimeout(async () => {
+            await simulateNFCRead();
+        }, 1000);
+    }
+
+    async function simulateNFCRead() {
+        try {
+            // Send read command to ESP8266
+            const response = await sendToArduino('scan', { action: 'read' });
+            
+            if (response.status === 'success' && response.uid) {
+                currentUID = response.uid;
+                updateUIDDisplay(currentUID); // This also populates the rfid_tag input
+                
+                const scanBtn = document.getElementById('scanBtn');
+                const nfcSection = document.getElementById('nfcSection');
+                const writeBtn = document.getElementById('writeBtn');
+                
+                scanBtn.innerHTML = '📱 Scan NFC Tag';
+                scanBtn.disabled = false;
+                nfcSection.classList.remove('active', 'pulse');
+                writeBtn.disabled = false; // Enable write button after successful scan
+                
+                showStatus(`UID captured: ${currentUID}. Now you can write data to the tag!`, 'success');
+            } else {
+                showStatus('No NFC tag detected. Please try again.', 'warning');
+                resetScanButton();
+            }
+        } catch (error) {
+            showStatus('Failed to read NFC tag. Check ESP8266 connection.', 'error');
+            resetScanButton();
+        }
+        
+        isScanning = false;
+    }
+
+    function writeToNFC() {
+        if (!currentUID) {
+            showStatus('Please scan an NFC tag first!', 'error');
+            return;
+        }
+        
+        // Get quantity and unit from the form fields
+        const quantity = document.getElementById('quantity').value;
+        const unit = document.getElementById('unit').value;
+        
+        if (!quantity || quantity <= 0) {
+            showStatus('Please enter a valid quantity first!', 'error');
+            return;
+        }
+        
+        const writeBtn = document.getElementById('writeBtn');
+        const nfcSection = document.getElementById('nfcSection');
+        
+        writeBtn.innerHTML = '<span class="loading"></span>Writing to NFC Tag...';
+        writeBtn.disabled = true;
+        nfcSection.classList.add('active', 'pulse');
+        
+        const dataToWrite = `${quantity} ${unit}`;
+        showStatus(`Writing "${dataToWrite}" to NFC tag. Please place the tag on the reader again...`, 'info');
+        
+        // Real NFC writing - communicate with ESP8266
+        setTimeout(async () => {
+            await simulateNFCWrite(dataToWrite);
+        }, 1000);
+    }
+
+    async function simulateNFCWrite(data) {
+        try {
+            // Send write command to ESP8266
+            const response = await sendToArduino('write', { 
+                message: data,
+                uid: currentUID 
+            });
+            
+            const writeBtn = document.getElementById('writeBtn');
+            const nfcSection = document.getElementById('nfcSection');
+            
+            writeBtn.innerHTML = '💾 Write Data to NFC Tag';
+            writeBtn.disabled = false;
+            nfcSection.classList.remove('active', 'pulse');
+            
+            if (response.status === 'success') {
+                showStatus(`Successfully wrote "${data}" to NFC tag with UID: ${currentUID}`, 'success');
+            } else {
+                showStatus('Failed to write to NFC tag. Please try again.', 'error');
+            }
+        } catch (error) {
+            const writeBtn = document.getElementById('writeBtn');
+            const nfcSection = document.getElementById('nfcSection');
+            
+            writeBtn.innerHTML = '💾 Write Data to NFC Tag';
+            writeBtn.disabled = false;
+            nfcSection.classList.remove('active', 'pulse');
+            
+            showStatus('Failed to write to NFC tag. Check ESP8266 connection.', 'error');
+        }
+    }
+
+    function resetScanButton() {
+        const scanBtn = document.getElementById('scanBtn');
+        const nfcSection = document.getElementById('nfcSection');
+        
+        scanBtn.innerHTML = '📱 Scan NFC Tag';
+        scanBtn.disabled = false;
+        nfcSection.classList.remove('active', 'pulse');
+        updateUIDDisplay(null); // Clear UID display and rfid_tag input
+    }
+
+    // ESP8266 IP address - UPDATE THIS WITH YOUR ESP8266'S IP
+    const ESP8266_IP = '192.168.137.62'; // <--- IMPORTANT: REPLACE WITH YOUR ESP8266'S IP
+    const ESP8266_PORT = '80';
+    
+    // Communication functions for ESP8266
+    async function sendToArduino(command, data) {
+        try {
+            const response = await fetch(`http://${ESP8266_IP}:${ESP8266_PORT}/${command}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            return result;
+        } catch (error) {
+            console.error('Error communicating with ESP8266:', error);
+            showStatus('Error communicating with ESP8266. Check connection.', 'error');
+            throw error;
+        }
+    }
+</script>
 {% endblock %}

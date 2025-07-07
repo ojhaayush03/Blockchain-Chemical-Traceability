@@ -137,9 +137,8 @@ class FileSize:
                 raise ValidationError(
                     self.message
                     or field.gettext(
-                        "File must be between {min_size} and {max_size} bytes.".format(
-                            min_size=self.min_size, max_size=self.max_size
-                        )
+                        f"File must be between {self.min_size}"
+                        f" and {self.max_size} bytes."
                     )
                 )
 
